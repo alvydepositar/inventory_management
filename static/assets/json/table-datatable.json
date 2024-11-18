@@ -1,0 +1,65 @@
+{
+  "data": [
+    {
+      "id": 1,
+      "product_id": "001",
+      "product_name": "Ultra White Paint",
+      "category": "Interior",
+      "volume": "5L",
+      "color_finish": "Matte",
+      "unit_price": 500,
+      "stock_quantity": 50,
+      "supplier": "Supplier A",
+      "reorder_level": 10
+    },
+    {
+      "id": 2,
+      "product_id": "002",
+      "product_name": "Gloss Finish Blue",
+      "category": "Exterior",
+      "volume": "1L",
+      "color_finish": "Glossy",
+      "unit_price": 350,
+      "stock_quantity": 30,
+      "supplier": "Supplier B",
+      "reorder_level": 5
+    },
+    {
+      "id": 3,
+      "product_id": "003",
+      "product_name": "Primer Base",
+      "category": "Primer",
+      "volume": "10L",
+      "color_finish": "Satin",
+      "unit_price": 800,
+      "stock_quantity": 15,
+      "supplier": "Supplier A",
+      "reorder_level": 8
+    },
+    {
+      "id": 4,
+      "product_id": "004",
+      "product_name": "Weather Guard Paint",
+      "category": "Exterior",
+      "volume": "5L",
+      "color_finish": "Matte",
+      "unit_price": 650,
+      "stock_quantity": 20,
+      "supplier": "Supplier C",
+      "reorder_level": 6
+    },
+    {
+      "id": 5,
+      "product_id": "005",
+      "product_name": "Quick Dry Enamel",
+      "category": "Interior",
+      "volume": "1L",
+      "color_finish": "Glossy",
+      "unit_price": 400,
+      "stock_quantity": 25,
+      "supplier": "Supplier D",
+      "reorder_level": 7
+    }
+  ]
+}
+  
