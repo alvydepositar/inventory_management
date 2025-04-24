@@ -6,118 +6,80 @@
 <!-- Content wrapper -->
 <div class="content-wrapper">
   <!-- Content -->
-  <div class="container-xxl flex-grow-1 container-p-y">    <!-- Your tables content here -->
+  <div class="container-xxl flex-grow-1 container-p-y">
     <!-- DataTable with Buttons -->
     <div class="card">
       <div class="card-datatable table-responsive pt-0">
-        <table class="datatables-basic table">
+        <table class="product-datatables-basic table">
           <thead>
             <tr>
-              <th></th> <!-- For the control column -->
-              <th>ID</th>
+              <th></th>
+              <th></th>
               <th>ID</th>
               <th>Product Name</th>
               <th>Category</th>
-              <th>Volume</th>
-              <th>Color/Finish</th>
+              <th>Brand</th>
               <th>Unit Price</th>
               <th>Supplier</th>
+              <th>Actions</th>
             </tr>
           </thead>
         </table>
       </div>
     </div>
-    <!-- Modal to add new record -->
-    <div class="offcanvas offcanvas-end" id="add-new-record">
-      <div class="offcanvas-header border-bottom">
-        <h5 class="offcanvas-title" id="exampleModalLabel">New Record</h5>
-        <button
-          type="button"
-          class="btn-close text-reset"
-          data-bs-dismiss="offcanvas"
-          aria-label="Close"
-        ></button>
-      </div>
-      <div class="offcanvas-body flex-grow-1">
-        <form class="add-new-record pt-0 row g-2" id="form-add-new-record" onsubmit="return false">
-          <div class="col-sm-12">
-            <label class="form-label" for="product-name">Product Name</label>
-            <div class="input-group input-group-merge">
-              <input
-                type="text"
-                id="product-name"
-                class="form-control dt-product-name"
-                name="product-name"
-                placeholder="White Paint"
-                aria-label="John Doe"
-                aria-describedby="basicFullname2"
-              />
+
+    <div class="modal fade" id="add-new-record" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-simple modal-edit-user">
+        <div class="modal-content p-3 p-md-5">
+          <div class="modal-body">
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="text-center mb-4">
+              <h3 class="mb-2">Add New Product</h3>
+              <p class="text-muted">Adding new product to the catalog.</p>
             </div>
-          </div>
-          <div class="col-sm-12">
-            <label class="form-label" for="categorySelect">Category</label>
-            <div class="input-group input-group-merge">
-                <select id="categorySelect" name="categorySelect" class="form-control dt-category" aria-label="Category">
-                    <option value="" disabled selected>Select a category</option>
-                    <option value="web-developer">Primer</option>
-                    <option value="graphic-designer">Exterior</option>
-                    <option value="data-analyst">Interior</option>
-                    <!-- Add more options as needed -->
-                </select>
-            </div>
-          </div>
-          <div class="col-sm-12">
-            <label class="form-label" for="volume">Volume</label>
-            <div class="input-group input-group-merge">
-              <input
-                type="text"
-                id="basicEmail"
-                name="basicEmail"
-                class="form-control dt-volume"
-                placeholder="5L, 1L, 500ml"
-                aria-label="john.doe@example.com"
-              />
-            </div>
-            <div class="form-text">You can use letters, numbers & periods</div>
-          </div>
-          <div class="col-sm-12">
-              <label class="form-label" for="colorFinishSelect">Color/Finish</label>
-              <div class="input-group input-group-merge">
-                  <select id="colorFinishSelect" name="colorFinishSelect" class="form-control dt-color" aria-describedby="colorFinishIcon">
-                      <option value="" disabled selected>Select a color/finish</option>
-                      <option value="matte">Matte</option>
-                      <option value="glossy">Glossy</option>
-                      <option value="satin">Satin</option>
-                      <option value="metallic">Metallic</option>
-                      <!-- Add more options as needed -->
-                  </select>
+            <form id="addProductForm" class="row g-3 fv-plugins-bootstrap5 fv-plugins-framework" onsubmit="return false" novalidate="novalidate">
+              <div class="col-12 col-md-6 fv-plugins-icon-container">
+                <label class="form-label" for="modalProductID">Product ID</label>
+                <input type="text" id="modalProductID" name="modalProductID" class="form-control" placeholder="PRD-001">
+                <div class="fv-plugins-message-container invalid-feedback"></div>
               </div>
+              <div class="col-12 col-md-6 fv-plugins-icon-container">
+                <label class="form-label" for="modalProductName">Product Name</label>
+                <input type="text" id="modalProductName" name="modalProductName" class="form-control" placeholder="Product Name">
+                <div class="fv-plugins-message-container invalid-feedback"></div>
+              </div>
+              <div class="col-12 col-md-6 fv-plugins-icon-container">
+                <label class="form-label" for="modalCategory">Category</label>
+                <input type="text" id="modalCategory" name="modalCategory" class="form-control" placeholder="Category">
+                <div class="fv-plugins-message-container invalid-feedback"></div>
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="modalBrand">Brand</label>
+                <input type="text" id="modalBrand" name="modalBrand" class="form-control" placeholder="Brand">
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="modalUnitPrice">Unit Price</label>
+                <input type="number" id="modalUnitPrice" name="modalUnitPrice" class="form-control" placeholder="0.00">
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="modalSupplier">Supplier</label>
+                <input type="text" id="modalSupplier" name="modalSupplier" class="form-control" placeholder="Supplier Name">
+              </div>
+              <div class="col-12 text-center">
+                <button type="submit" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Submit</button>
+                <button type="reset" class="btn btn-label-secondary waves-effect" data-bs-dismiss="modal" aria-label="Close">
+                  Cancel
+                </button>
+              </div>
+              <input type="hidden">
+            </form>
           </div>
-          <div class="col-sm-12">
-            <label class="form-label" for="basicSalary">Unit Price</label>
-            <div class="input-group input-group-merge">
-              <span id="basicSalary2" class="input-group-text"><i class="ti ti-currency-peso"></i></span>
-              <input
-                type="number"
-                id="basicSalary"
-                name="basicSalary"
-                class="form-control dt-unit-price"
-                placeholder="12000"
-                aria-label="12000"
-                aria-describedby="basicSalary2"
-              />
-            </div>
-          </div>
-          <div class="col-sm-12">
-            <button type="submit" class="btn btn-primary data-submit me-sm-3 me-1">Submit</button>
-            <button type="reset" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
-          </div>
-        </form>
+        </div>
       </div>
     </div>
-    <!--/ DataTable with Buttons -->
-    
+    <!-- Modal to add new record -->
+  
+    <!--/ DataTable with Buttons -->  
   </div>
-
 </div>
 {% endblock %}

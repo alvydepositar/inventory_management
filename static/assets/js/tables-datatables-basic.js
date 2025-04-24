@@ -4,114 +4,9 @@
 
 'use strict';
 
-let fv, offCanvasEl;
-document.addEventListener('DOMContentLoaded', function (e) {
-  (function () {
-    const formAddNewRecord = document.getElementById('form-add-new-record');
-
-    setTimeout(() => {
-      const newRecord = document.querySelector('.create-new'),
-        offCanvasElement = document.querySelector('#add-new-record');
-
-      // To open offCanvas, to add new record
-      if (newRecord) {
-        newRecord.addEventListener('click', function () {
-          offCanvasEl = new bootstrap.Offcanvas(offCanvasElement);
-          // Empty fields on offCanvas open
-          (offCanvasElement.querySelector('.dt-product-name').value = ''),
-            (offCanvasElement.querySelector('.dt-category').value = ''),
-            (offCanvasElement.querySelector('.dt-volume').value = ''),
-            (offCanvasElement.querySelector('.dt-color').value = ''),
-            (offCanvasElement.querySelector('.dt-unit-price').value = '');
-          // Open offCanvas with form
-          offCanvasEl.show();
-        });
-      }
-    }, 200);
-
-    // Form validation for Add new record
-    fv = FormValidation.formValidation(formAddNewRecord, {
-      fields: {
-        basicFullname: {
-          validators: {
-            notEmpty: {
-              message: 'The name is required'
-            }
-          }
-        },
-        basicPost: {
-          validators: {
-            notEmpty: {
-              message: 'Post field is required'
-            }
-          }
-        },
-        basicEmail: {
-          validators: {
-            notEmpty: {
-              message: 'The Email is required'
-            },
-            emailAddress: {
-              message: 'The value is not a valid email address'
-            }
-          }
-        },
-        basicDate: {
-          validators: {
-            notEmpty: {
-              message: 'Joining Date is required'
-            },
-            date: {
-              format: 'MM/DD/YYYY',
-              message: 'The value is not a valid date'
-            }
-          }
-        },
-        basicSalary: {
-          validators: {
-            notEmpty: {
-              message: 'Basic Salary is required'
-            }
-          }
-        }
-      },
-      plugins: {
-        trigger: new FormValidation.plugins.Trigger(),
-        bootstrap5: new FormValidation.plugins.Bootstrap5({
-          // Use this for enabling/changing valid/invalid class
-          // eleInvalidClass: '',
-          eleValidClass: '',
-          rowSelector: '.col-sm-12'
-        }),
-        submitButton: new FormValidation.plugins.SubmitButton(),
-        // defaultSubmit: new FormValidation.plugins.DefaultSubmit(),
-        autoFocus: new FormValidation.plugins.AutoFocus()
-      },
-      init: instance => {
-        instance.on('plugins.message.placed', function (e) {
-          if (e.element.parentElement.classList.contains('input-group')) {
-            e.element.parentElement.insertAdjacentElement('afterend', e.messageElement);
-          }
-        });
-      }
-    });
-
-    // FlatPickr Initialization & Validation
-    flatpickr(formAddNewRecord.querySelector('[name="basicDate"]'), {
-      enableTime: false,
-      // See https://flatpickr.js.org/formatting/
-      dateFormat: 'm/d/Y',
-      // After selecting a date, we need to revalidate the field
-      onChange: function () {
-        fv.revalidateField('basicDate');
-      }
-    });
-  })();
-});
-
-// datatable (jquery)
+// Product Catalogue Data Table (jquery)
 $(function () {
-  var dt_basic_table = $('.datatables-basic'),
+  var dt_basic_table = $('.product-datatables-basic'),
     dt_basic;
 
   // DataTable with buttons
@@ -121,15 +16,15 @@ $(function () {
     dt_basic = dt_basic_table.DataTable({
       ajax: '../static/assets/json/table-datatable.json',
       columns: [
-        { data: '' },
-        { data: 'id' },
+        { data: null, defaultContent: '' }, // Control column
+        { data: null, defaultContent: '' }, // Checkbox column
         { data: 'product_id' },
         { data: 'product_name' },
         { data: 'category' },
-        { data: 'volume' },
-        { data: 'color_finish' },
+        { data: 'brand' },
         { data: 'unit_price' },
-        { data: 'supplier' }
+        { data: 'supplier' },
+        { data: null, defaultContent: '' } // Actions column
       ],
       columnDefs: [
         {
@@ -145,9 +40,8 @@ $(function () {
         {
           targets: 1,
           orderable: false,
-          searchable: true,
+          searchable: false,
           responsivePriority: 3,
-          checkboxes: true,
           render: function () {
             return '<input type="checkbox" class="dt-checkboxes form-check-input">';
           },
@@ -156,28 +50,16 @@ $(function () {
           }
         },
         {
-          targets: 2,
-          searchable: false,
-          visible: true
-        },
-        {
-          targets: 3,
-          render: function (data, type, full, meta) {
-            return '<span class="emp_name text-truncate">' + full['product_name'] + '</span>';
-          }
-        },
-        {
           targets: -1,
           title: 'Actions',
           orderable: false,
-          searchable: true,
+          searchable: false,
           render: function (data, type, full, meta) {
             return (
               '<div class="d-inline-block">' +
               '<a href="javascript:;" class="btn btn-sm btn-icon dropdown-toggle hide-arrow" data-bs-toggle="dropdown"><i class="text-primary ti ti-dots-vertical"></i></a>' +
               '<ul class="dropdown-menu dropdown-menu-end m-0">' +
               '<li><a href="javascript:;" class="dropdown-item">Details</a></li>' +
-              '<li><a href="javascript:;" class="dropdown-item">Archive</a></li>' +
               '<div class="dropdown-divider"></div>' +
               '<li><a href="javascript:;" class="dropdown-item text-danger delete-record">Delete</a></li>' +
               '</ul>' +
@@ -202,8 +84,7 @@ $(function () {
               text: '<i class="ti ti-printer me-1" ></i>Print',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [3, 4, 5, 6, 7],
-                // prevent avatar to be display
+                columns: [2, 3, 4, 5, 6, 7],
                 format: {
                   body: function (inner, coldex, rowdex) {
                     if (inner.length <= 0) return inner;
@@ -239,47 +120,15 @@ $(function () {
               text: '<i class="ti ti-file-text me-1" ></i>Csv',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [3, 4, 5, 6, 7],
-                // prevent avatar to be display
-                format: {
-                  body: function (inner, coldex, rowdex) {
-                    if (inner.length <= 0) return inner;
-                    var el = $.parseHTML(inner);
-                    var result = '';
-                    $.each(el, function (index, item) {
-                      if (item.classList !== undefined && item.classList.contains('user-name')) {
-                        result = result + item.lastChild.firstChild.textContent;
-                      } else if (item.innerText === undefined) {
-                        result = result + item.textContent;
-                      } else result = result + item.innerText;
-                    });
-                    return result;
-                  }
-                }
+                columns: [2, 3, 4, 5, 6, 7]
               }
             },
             {
               extend: 'excel',
-              text: 'Excel',
+              text: '<i class="ti ti-file-spreadsheet me-1"></i>Excel',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [3, 4, 5, 6, 7],
-                // prevent avatar to be display
-                format: {
-                  body: function (inner, coldex, rowdex) {
-                    if (inner.length <= 0) return inner;
-                    var el = $.parseHTML(inner);
-                    var result = '';
-                    $.each(el, function (index, item) {
-                      if (item.classList !== undefined && item.classList.contains('user-name')) {
-                        result = result + item.lastChild.firstChild.textContent;
-                      } else if (item.innerText === undefined) {
-                        result = result + item.textContent;
-                      } else result = result + item.innerText;
-                    });
-                    return result;
-                  }
-                }
+                columns: [2, 3, 4, 5, 6, 7]
               }
             },
             {
@@ -287,23 +136,7 @@ $(function () {
               text: '<i class="ti ti-file-description me-1"></i>Pdf',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [3, 4, 5, 6, 7],
-                // prevent avatar to be display
-                format: {
-                  body: function (inner, coldex, rowdex) {
-                    if (inner.length <= 0) return inner;
-                    var el = $.parseHTML(inner);
-                    var result = '';
-                    $.each(el, function (index, item) {
-                      if (item.classList !== undefined && item.classList.contains('user-name')) {
-                        result = result + item.lastChild.firstChild.textContent;
-                      } else if (item.innerText === undefined) {
-                        result = result + item.textContent;
-                      } else result = result + item.innerText;
-                    });
-                    return result;
-                  }
-                }
+                columns: [2, 3, 4, 5, 6, 7]
               }
             },
             {
@@ -311,23 +144,7 @@ $(function () {
               text: '<i class="ti ti-copy me-1" ></i>Copy',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [3, 4, 5, 6, 7],
-                // prevent avatar to be display
-                format: {
-                  body: function (inner, coldex, rowdex) {
-                    if (inner.length <= 0) return inner;
-                    var el = $.parseHTML(inner);
-                    var result = '';
-                    $.each(el, function (index, item) {
-                      if (item.classList !== undefined && item.classList.contains('user-name')) {
-                        result = result + item.lastChild.firstChild.textContent;
-                      } else if (item.innerText === undefined) {
-                        result = result + item.textContent;
-                      } else result = result + item.innerText;
-                    });
-                    return result;
-                  }
-                }
+                columns: [2, 3, 4, 5, 6, 7]
               }
             }
           ]
@@ -362,46 +179,82 @@ $(function () {
     });
   }
   
-
   // Add New record
-  // ? Remove/Update this code as per your requirements
   var count = 101;
+  
+  // Form validation for Add New Record
+  var fv = FormValidation.formValidation(document.getElementById('addProductForm'), {
+    fields: {
+      modalProductID: {
+        validators: {
+          notEmpty: {
+            message: 'Please enter product ID'
+          }
+        }
+      },
+      modalProductName: {
+        validators: {
+          notEmpty: {
+            message: 'Please enter product name'
+          }
+        }
+      }
+    },
+    plugins: {
+      trigger: new FormValidation.plugins.Trigger(),
+      bootstrap5: new FormValidation.plugins.Bootstrap5({
+        eleValidClass: '',
+        rowSelector: function (field, ele) {
+          return '.fv-plugins-icon-container';
+        }
+      }),
+      submitButton: new FormValidation.plugins.SubmitButton(),
+      autoFocus: new FormValidation.plugins.AutoFocus()
+    }
+  });
+
   // On form submit, if form is valid
   fv.on('core.form.valid', function () {
-    var $new_name = $('.add-new-record .dt-full-name').val(),
-      $new_post = $('.add-new-record .dt-post').val(),
-      $new_email = $('.add-new-record .dt-email').val(),
-      $new_date = $('.add-new-record .dt-date').val(),
-      $new_salary = $('.add-new-record .dt-salary').val();
+    var $product_id = $('#modalProductID').val(),
+        $product_name = $('#modalProductName').val(),
+        $category = $('#modalCategory').val(),
+        $brand = $('#modalBrand').val(),
+        $unit_price = $('#modalUnitPrice').val(),
+        $supplier = $('#modalSupplier').val();
 
-    if ($new_name != '') {
+    if ($product_name != '') {
       dt_basic.row
         .add({
           id: count,
-          full_name: $new_name,
-          post: $new_post, 
-          email: $new_email,
-          start_date: $new_date,
-          salary: '$' + $new_salary,
-          status: 5
+          product_id: $product_id,
+          product_name: $product_name,
+          category: $category,
+          brand: $brand,
+          unit_price: '$' + $unit_price,
+          supplier: $supplier
         })
         .draw();
       count++;
 
-      // Hide offcanvas using javascript method
-      offCanvasEl.hide();
+      // Hide modal
+      $('#add-new-record').modal('hide');
     }
   });
 
+  // Handle click event for "Add New Record" button
+  $(document).on('click', '.create-new', function () {
+    $('#add-new-record').modal('show');
+  });
+
   // Delete Record
-  $('.datatables-basic tbody').on('click', '.delete-record', function () {
+  $('.product-datatables-basic tbody').on('click', '.delete-record', function () {
     dt_basic.row($(this).parents('tr')).remove().draw();
   });
 
   // After initializing the DataTable
-  $('.head-label.text-center').append('<h5>Product Catalog</h5>');
+  $('.head-label.text-center').html('<h5 class="card-title mb-0">Product Catalog</h5>');
+  
   // Filter form control to default size
-  // ? setTimeout used for multilingual table initialization
   setTimeout(() => {
     $('.dataTables_filter .form-control').removeClass('form-control-sm');
     $('.dataTables_length .form-select').removeClass('form-select-sm');
