@@ -3,8 +3,8 @@
  */
 
 'use strict';
+// Product Catalogue Data Table (jquery).
 
-// Product Catalogue Data Table (jquery)
 $(function () {
   var dt_basic_table = $('.product-datatables-basic'),
     dt_basic;
@@ -14,7 +14,7 @@ $(function () {
 
   if (dt_basic_table.length) {
     dt_basic = dt_basic_table.DataTable({
-      ajax: '../static/assets/json/table-datatable.json',
+      ajax: '/product-data/', // Fetch data from the Django endpoint
       columns: [
         { data: null, defaultContent: '' }, // Control column
         { data: null, defaultContent: '' }, // Checkbox column
@@ -84,35 +84,7 @@ $(function () {
               text: '<i class="ti ti-printer me-1" ></i>Print',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [2, 3, 4, 5, 6, 7],
-                format: {
-                  body: function (inner, coldex, rowdex) {
-                    if (inner.length <= 0) return inner;
-                    var el = $.parseHTML(inner);
-                    var result = '';
-                    $.each(el, function (index, item) {
-                      if (item.classList !== undefined && item.classList.contains('user-name')) {
-                        result = result + item.lastChild.firstChild.textContent;
-                      } else if (item.innerText === undefined) {
-                        result = result + item.textContent;
-                      } else result = result + item.innerText;
-                    });
-                    return result;
-                  }
-                }
-              },
-              customize: function (win) {
-                //customize print view for dark
-                $(win.document.body)
-                  .css('color', config.colors.headingColor)
-                  .css('border-color', config.colors.borderColor)
-                  .css('background-color', config.colors.bodyBg);
-                $(win.document.body)
-                  .find('table')
-                  .addClass('compact')
-                  .css('color', 'inherit')
-                  .css('border-color', 'inherit')
-                  .css('background-color', 'inherit');
+                columns: [2, 3, 4, 5, 6, 7]
               }
             },
             {
@@ -151,7 +123,14 @@ $(function () {
         },
         {
           text: '<i class="ti ti-plus me-sm-1"></i> <span class="d-none d-sm-inline-block">Add New Record</span>',
-          className: 'create-new btn btn-primary'
+          className: 'create-new btn btn-primary',
+          attr: {
+            'data-bs-toggle': 'modal',
+            'data-bs-target': '#addProductModal'
+          },
+          init: function (api, node) {
+            $(node).removeClass('btn-secondary');
+          }
         }
       ],
       responsive: {
@@ -178,73 +157,6 @@ $(function () {
       }
     });
   }
-  
-  // Add New record
-  var count = 101;
-  
-  // Form validation for Add New Record
-  var fv = FormValidation.formValidation(document.getElementById('addProductForm'), {
-    fields: {
-      modalProductID: {
-        validators: {
-          notEmpty: {
-            message: 'Please enter product ID'
-          }
-        }
-      },
-      modalProductName: {
-        validators: {
-          notEmpty: {
-            message: 'Please enter product name'
-          }
-        }
-      }
-    },
-    plugins: {
-      trigger: new FormValidation.plugins.Trigger(),
-      bootstrap5: new FormValidation.plugins.Bootstrap5({
-        eleValidClass: '',
-        rowSelector: function (field, ele) {
-          return '.fv-plugins-icon-container';
-        }
-      }),
-      submitButton: new FormValidation.plugins.SubmitButton(),
-      autoFocus: new FormValidation.plugins.AutoFocus()
-    }
-  });
-
-  // On form submit, if form is valid
-  fv.on('core.form.valid', function () {
-    var $product_id = $('#modalProductID').val(),
-        $product_name = $('#modalProductName').val(),
-        $category = $('#modalCategory').val(),
-        $brand = $('#modalBrand').val(),
-        $unit_price = $('#modalUnitPrice').val(),
-        $supplier = $('#modalSupplier').val();
-
-    if ($product_name != '') {
-      dt_basic.row
-        .add({
-          id: count,
-          product_id: $product_id,
-          product_name: $product_name,
-          category: $category,
-          brand: $brand,
-          unit_price: '$' + $unit_price,
-          supplier: $supplier
-        })
-        .draw();
-      count++;
-
-      // Hide modal
-      $('#add-new-record').modal('hide');
-    }
-  });
-
-  // Handle click event for "Add New Record" button
-  $(document).on('click', '.create-new', function () {
-    $('#add-new-record').modal('show');
-  });
 
   // Delete Record
   $('.product-datatables-basic tbody').on('click', '.delete-record', function () {
@@ -253,10 +165,52 @@ $(function () {
 
   // After initializing the DataTable
   $('.head-label.text-center').html('<h5 class="card-title mb-0">Product Catalog</h5>');
-  
+
   // Filter form control to default size
   setTimeout(() => {
     $('.dataTables_filter .form-control').removeClass('form-control-sm');
     $('.dataTables_length .form-select').removeClass('form-select-sm');
   }, 300);
+});
+
+// Handle form submission using Fetch API
+document.getElementById('addProductForm').addEventListener('submit', function (e) {
+  e.preventDefault();
+
+  const formData = new FormData(this);
+
+  // Ensure the CSRF token is correctly retrieved
+  const csrfTokenElement = document.querySelector('[name=csrfmiddlewaretoken]');
+  if (!csrfTokenElement) {
+    console.error('CSRF token not found. Ensure the input field with name="csrfmiddlewaretoken" exists.');
+    return;
+  }
+
+  const csrfToken = csrfTokenElement.value;
+
+  fetch(this.action, {
+    method: 'POST',
+    body: formData,
+    headers: {
+      'X-CSRFToken': csrfToken
+    }
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert(data.message);
+        location.reload(); // Reload the page or update the table dynamically
+      } else {
+        // Display validation errors
+        for (const [field, errors] of Object.entries(data.errors)) {
+          const input = document.querySelector(`[name=${field}]`);
+          if (input) {
+            const errorContainer = input.nextElementSibling;
+            errorContainer.innerHTML = errors.join('<br>');
+            input.classList.add('is-invalid');
+          }
+        }
+      }
+    })
+    .catch(error => console.error('Error:', error));
 });
