@@ -3,7 +3,6 @@
  */
 
 'use strict';
-// Product Catalogue Data Table (jquery).
 
 $(function () {
   var dt_basic_table = $('.product-datatables-basic'),
@@ -64,7 +63,7 @@ $(function () {
               '<li><a href="javascript:;" class="dropdown-item text-danger delete-record">Delete</a></li>' +
               '</ul>' +
               '</div>' +
-              '<a href="javascript:;" class="btn btn-sm btn-icon item-edit"><i class="text-primary ti ti-pencil"></i></a>'
+              '<a href="javascript:;" class="btn btn-sm btn-icon item-edit" data-bs-toggle="modal" data-bs-target="#productModal" data-product-id="' + full.product_id + '"><i class="text-primary ti ti-pencil"></i></a>'
             );
           }
         }
@@ -126,7 +125,7 @@ $(function () {
           className: 'create-new btn btn-primary',
           attr: {
             'data-bs-toggle': 'modal',
-            'data-bs-target': '#addProductModal'
+            'data-bs-target': '#productModal'
           },
           init: function (api, node) {
             $(node).removeClass('btn-secondary');
@@ -174,7 +173,7 @@ $(function () {
 });
 
 // Handle form submission using Fetch API
-document.getElementById('addProductForm').addEventListener('submit', function (e) {
+document.getElementById('productForm').addEventListener('submit', function (e) {
   e.preventDefault();
 
   const formData = new FormData(this);
