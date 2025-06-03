@@ -39,12 +39,13 @@
                 <div class="modal-body">
                     <form id="productForm" class="row g-3 fv-plugins-bootstrap5 fv-plugins-framework" method="POST" action="{{ form_action }}">
                         {% csrf_token %}
+                        {% if editing %}
+                            <input type="hidden" name="product_id" value="{{ product.id }}">
+                        {% endif %}
                         <div class="col-12 col-md-6 fv-plugins-icon-container">
                             <label class="form-label" for="modalProductID">Product ID</label>
-                            <input type="text" id="modalProductID" name="product_id" class="form-control" placeholder="PRD-001" {% if editing %}disabled{% endif %}>
-                            {% if editing %}
-                                <input type="hidden" name="product_id" value="{{ product.product_id }}">
-                            {% endif %}
+                            <input type="text" id="modalProductID" name="product_id" class="form-control" placeholder="PRD-001"
+                                value="{% if editing %}{{ product.product_id }}{% endif %}" {% if editing %}readonly{% endif %}>
                             <div class="fv-plugins-message-container invalid-feedback"></div>
                         </div>
                         <div class="col-12 col-md-6 fv-plugins-icon-container">
@@ -71,7 +72,7 @@
                         </div>
                         <div class="col-12 text-center">
                             <button type="submit" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Submit</button>
-                            <button type="reset" class="btn btn-label-secondary waves-effect" data-bs-dismiss="modal" aria-label="Close">
+                            <button type="button" class="btn btn-label-secondary waves-effect" data-bs-dismiss="modal" aria-label="Close">
                                 Cancel
                             </button>
                         </div>

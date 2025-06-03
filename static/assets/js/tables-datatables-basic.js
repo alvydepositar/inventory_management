@@ -3,8 +3,10 @@
  */
 
 'use strict';
+let productModalInstance = null;
 
 $(function () {
+  productModalInstance = new bootstrap.Modal(document.getElementById('productModal'));
   var dt_basic_table = $('.product-datatables-basic'),
     dt_basic;
 
@@ -16,14 +18,14 @@ $(function () {
       ajax: '/product-data/', // Fetch data from the Django endpoint
       columns: [
         { data: null, defaultContent: '' }, // Control column
-        { data: null, defaultContent: '' }, // Checkbox column
+        { data: 'id' }, // Checkbox column
         { data: 'product_id' },
         { data: 'product_name' },
         { data: 'category' },
         { data: 'brand' },
         { data: 'unit_price' },
         { data: 'supplier' },
-        { data: null, defaultContent: '' } // Actions column
+        { data: 'id', defaultContent: '' } // Actions column
       ],
       columnDefs: [
         {
@@ -58,12 +60,12 @@ $(function () {
               '<div class="d-inline-block">' +
               '<a href="javascript:;" class="btn btn-sm btn-icon dropdown-toggle hide-arrow" data-bs-toggle="dropdown"><i class="text-primary ti ti-dots-vertical"></i></a>' +
               '<ul class="dropdown-menu dropdown-menu-end m-0">' +
-              '<li><a href="javascript:;" class="dropdown-item">Details</a></li>' +
+              '<li><a href="javascript:;" class="dropdown-item item-view" data-bs-toggle="modal" data-bs-target="#productModal" data-id="' + full.id + '">Details</a></li>' +
               '<div class="dropdown-divider"></div>' +
               '<li><a href="javascript:;" class="dropdown-item text-danger delete-record">Delete</a></li>' +
               '</ul>' +
               '</div>' +
-              '<a href="javascript:;" class="btn btn-sm btn-icon item-edit" data-bs-toggle="modal" data-bs-target="#productModal" data-product-id="' + full.product_id + '"><i class="text-primary ti ti-pencil"></i></a>'
+              '<a href="javascript:;" class="btn btn-sm btn-icon item-edit" data-bs-toggle="modal" data-bs-target="#productModal" data-id="' + full.id + '"><i class="text-primary ti ti-pencil"></i></a>'
             );
           }
         }
@@ -157,9 +159,73 @@ $(function () {
     });
   }
 
+  // Handle view button click
+  $('.product-datatables-basic tbody').on('click', '.item-view', function () {
+    var tr = $(this).closest('tr');
+    var row = dt_basic.row(tr);
+    var data = row.data();
+
+    // Fill modal fields
+    $('#productModalLabel').text('View Product');
+    $('#productForm').attr('action', '/view-product/' + data.id + '/');
+    $('#productForm input[name="product_id"]').val(data.product_id).prop('readonly', true);
+    $('#productForm input[name="product_name"]').val(data.product_name).prop('readonly', true);
+    $('#productForm input[name="category"]').val(data.category).prop('readonly', true);
+    $('#productForm input[name="brand"]').val(data.brand).prop('readonly', true);
+    $('#productForm input[name="unit_price"]').val(data.unit_price).prop('readonly', true);
+    $('#productForm input[name="supplier"]').val(data.supplier).prop('readonly', true);
+
+    // Remove submit button
+    $('#productForm button[type="submit"]').remove();
+    
+    productModalInstance.show();
+  });
+
+  // Handle edit button click
+  $('.product-datatables-basic tbody').on('click', '.item-edit', function () {
+    var tr = $(this).closest('tr');
+    var row = dt_basic.row(tr);
+    var data = row.data();
+
+    // Fill modal fields
+    $('#productModalLabel').text('Edit Product');
+    $('#productForm').attr('action', '/edit-product/' + data.id + '/');
+    $('#productForm input[name="product_id"]').val(data.product_id).prop('readonly', true);
+    $('#productForm input[name="product_name"]').val(data.product_name);
+    $('#productForm input[name="category"]').val(data.category);
+    $('#productForm input[name="brand"]').val(data.brand);
+    $('#productForm input[name="unit_price"]').val(data.unit_price);
+    $('#productForm input[name="supplier"]').val(data.supplier);
+
+    // Show the modal
+    productModalInstance.show();
+  });
+
   // Delete Record
   $('.product-datatables-basic tbody').on('click', '.delete-record', function () {
-    dt_basic.row($(this).parents('tr')).remove().draw();
+    var tr = $(this).closest('tr');
+    var row = dt_basic.row(tr);
+    var data = row.data();
+
+    // Perform the delete action here
+    if (confirm('Are you sure you want to delete this record?')) {
+      // Send a request to the server to delete the record
+      fetch('/delete-product/' + data.id, {
+        method: 'DELETE',
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            alert(data.message);
+            row.remove().draw();
+          } else {
+            alert('Error deleting record: ' + data.message);
+          }
+        });
+    }
   });
 
   // After initializing the DataTable
