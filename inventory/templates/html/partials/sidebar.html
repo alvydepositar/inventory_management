@@ -48,10 +48,10 @@
           <div data-i18n="Products">Product Catalog</div>
         </a>
       </li>
-      <li class="menu-item">
-        <a href="#" class="menu-link">
+      <li class="menu-item {% if 'product-details' in request.path %}active{% endif %}">
+        <a href="{% url 'product_details' %}" class="menu-link">
           <i class="menu-icon tf-icons ti ti-man"></i>
-          <div data-i18n="Supplier">Supplier Management</div>
+          <div data-i18n="Supplier">Product Management</div>
         </a>
       </li>
     </ul>

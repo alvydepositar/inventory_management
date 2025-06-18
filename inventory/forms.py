@@ -1,5 +1,5 @@
 from django import forms
-from .models import Product
+from .models import Product, Categories, Suppliers, Brands
 
 class ProductForm(forms.ModelForm):
     class Meta:
@@ -45,3 +45,45 @@ class ProductForm(forms.ModelForm):
             raise forms.ValidationError("Supplier cannot be empty.")
         return supplier
     
+class CategoryForm(forms.ModelForm):
+    class Meta:
+        model = Categories
+        fields = ['name']
+    name = forms.CharField(max_length=100, required=True, label='Category Name')
+
+    def clean_name(self):
+        name = self.cleaned_data.get('name')
+        if not name:
+            raise forms.ValidationError("Category Name cannot be empty.")
+        return name
+
+class SupplierForm(forms.ModelForm):
+    class Meta:
+        model = Suppliers
+        fields = ['name', 'contact_info']
+    name = forms.CharField(max_length=100, required=True, label='Supplier Name')
+    contact_info = forms.CharField(widget=forms.Textarea, required=True, label='Contact Information')
+
+    def clean_name(self):
+        name = self.cleaned_data.get('name')
+        if not name:
+            raise forms.ValidationError("Supplier Name cannot be empty.")
+        return name
+    
+    def clean_contact_info(self):
+        contact_info = self.cleaned_data.get('contact_info')
+        if not contact_info:
+            raise forms.ValidationError("Contact Information cannot be empty.")
+        return contact_info
+    
+class BrandForm(forms.ModelForm):
+    class Meta:
+        model = Brands
+        fields = ['name']
+    name = forms.CharField(max_length=100, required=True, label='Brand Name')
+
+    def clean_name(self):
+        name = self.cleaned_data.get('name')
+        if not name:
+            raise forms.ValidationError("Brand Name cannot be empty.")
+        return name
