@@ -1,5 +1,5 @@
 from django.contrib import admin
-from inventory.models import Product, Categories, Suppliers, Brands
+from inventory.models import Products, Categories, Suppliers, Brands
 from django.utils.html import format_html
 
 class ProductAdmin(admin.ModelAdmin):
@@ -12,7 +12,7 @@ admin.site.site_title = "Inventory Management Admin Portal"
 admin.site.index_title = "Welcome to the Inventory Management Admin Portal"
 
 # Register your models here.
-admin.site.register(Product, ProductAdmin)
+admin.site.register(Products, ProductAdmin)
 admin.site.register(Categories)
 admin.site.register(Suppliers)
 admin.site.register(Brands)

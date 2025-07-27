@@ -1,13 +1,32 @@
 from django.db import models
 
-class Product(models.Model):
+class Users(models.Model):
+    id = models.AutoField(primary_key=True)
+    username = models.CharField(max_length=150, unique=True)
+    email = models.EmailField(unique=True)
+    password = models.CharField(max_length=128)
+    first_name = models.CharField(max_length=30, blank=True)
+    last_name = models.CharField(max_length=30, blank=True)
+    is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
+    is_admin = models.BooleanField(default=False)
+    is_branch_manager = models.BooleanField(default=False)
+    last_login = models.DateTimeField(null=True, blank=True)
+    date_joined = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.username
+
+class Products(models.Model):
     id = models.AutoField(primary_key=True)
     product_id = models.CharField(max_length=50, unique=True)
     product_name = models.CharField(max_length=255)
-    category = models.CharField(max_length=100)
-    brand = models.CharField(max_length=100)
+    category = models.ForeignKey('Categories', on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
+    brand = models.ForeignKey('Brands', on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
-    supplier = models.CharField(max_length=255)
+    supplier = models.ForeignKey('Suppliers', on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.product_name
@@ -15,6 +34,9 @@ class Product(models.Model):
 class Categories(models.Model):
     id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name
@@ -22,7 +44,12 @@ class Categories(models.Model):
 class Suppliers(models.Model):
     id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=100, unique=True)
-    contact_info = models.TextField()
+    contact_person = models.CharField(max_length=100)
+    contact_number = models.CharField(max_length=15, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name
@@ -30,6 +57,53 @@ class Suppliers(models.Model):
 class Brands(models.Model):
     id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     
     def __str__(self):
         return self.name
+    
+class Branches(models.Model):
+    id = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=100, unique=True)
+    location = models.CharField(max_length=255, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+    
+class StockLevel(models.Model):
+    id = models.AutoField(primary_key=True)
+    branch = models.ForeignKey(Branches, on_delete=models.SET_NULL, null=True)
+    product = models.ForeignKey(Products, on_delete=models.SET_NULL, null=True)
+    quantity = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('branch', 'product')
+
+    def __str__(self):
+        return f"{self.branch.name} - {self.product.name} = {self.quantity}"
+    
+    
+class StockMovement(models.Model):
+    TRANSACTION_CHOICES = (
+        ('IN', 'Stock In'),
+        ('OUT', 'Stock Out'),
+    )
+    id = models.AutoField(primary_key=True)
+    transaction_id = models.CharField(max_length=20, unique=True)
+    transaction_type = models.CharField(max_length=3, choices=TRANSACTION_CHOICES)
+    branch = models.ForeignKey(Branches, on_delete=models.SET_NULL, null=True, blank=True)
+    product = models.ForeignKey(Products, on_delete=models.SET_NULL, null=True, blank=True)
+    quantity = models.PositiveIntegerField()
+    remarks = models.TextField(blank=True)
+    handled_by = models.ForeignKey(Users, null=True, blank=True, on_delete=models.SET_NULL)
+    date = models.DateTimeField(auto_now_add=True)
+    last_updated = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.transaction_type} - {self.transaction_id} - {self.product.name}"

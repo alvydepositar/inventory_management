@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
 from .forms import ProductForm
-from .models import Product
+from .models import *
 from django.apps import apps
 from django.forms import modelform_factory
 from django.urls import reverse
@@ -94,27 +94,34 @@ def delete_item(request, app_label, model_name, item_id):
 
 def product_catalogue(request, id=None):
     if id:  # Editing an existing product
-        product = get_object_or_404(Product, pk=id)
+        product = get_object_or_404(Products, pk=id)
         modal_title = "Edit Product"
         form_action = reverse('edit_product', args=[product.pk])
         editing = True
     else:  # Adding a new product
         product = None
-        modal_title = "Add New Product"
+        modal_title = "Add New Record"
         form_action = reverse('add_product')
         editing = False
 
+    categories = Categories.objects.all()
+    brands = Brands.objects.all()
+    suppliers = Suppliers.objects.all()
+    
     context = {
         'modal_title': modal_title,
         'form_action': form_action,
         'editing': editing,
         'product': product,
+        'categories': categories,
+        'brands': brands,
+        'suppliers': suppliers,
     }
     return render(request, 'html/product-catalogue.html', context)
 
 def product_data(request):
-    products = Product.objects.all().values(
-        'id', 'product_id', 'product_name', 'category', 'brand', 'unit_price', 'supplier'
+    products = Products.objects.all().values(
+        'id', 'product_id', 'product_name', 'category__name', 'category__id', 'brand__name', 'brand__id', 'unit_price', 'supplier__name', 'supplier__id', 'created_at', 'updated_at'
     )
     data = list(products)
     return JsonResponse({'data': data})
@@ -137,13 +144,13 @@ def edit_product(request, pk):
             product.save()
             return redirect('product_catalogue')  # Redirect to the product catalogue after saving
     else:
-        product = get_object_or_404(Product, pk=pk)
+        product = get_object_or_404(Products, pk=pk)
         form = ProductForm(instance=product)
         
-    return edit_item(request, 'inventory', 'Product', pk)
+    return edit_item(request, 'inventory', 'Products', pk)
 
 def delete_product(request, pk):
-    return delete_item(request, 'inventory', 'Product', pk)
+    return delete_item(request, 'inventory', 'Products', pk)
 
 def product_details(request, category_id=None, brand_id=None):
     if category_id:
@@ -153,7 +160,7 @@ def product_details(request, category_id=None, brand_id=None):
         category_editing = True
     else:
         category = None
-        category_modal_title = "Add New Category"
+        category_modal_title = "Add New Record"
         category_form_action = reverse('add_category')
         category_editing = False
 
@@ -164,7 +171,7 @@ def product_details(request, category_id=None, brand_id=None):
         brand_editing = True
     else:
         brand = None
-        brand_modal_title = "Add New Brand"
+        brand_modal_title = "Add New Record"
         brand_form_action = reverse('add_brand')
         brand_editing = False
 
@@ -237,8 +244,28 @@ def edit_brand(request, pk):
 def delete_brand(request, pk):
     return delete_item(request, 'inventory', 'Brands', pk)
 
+def suppliers(request, id=None):
+    if id: # Editing an existing supplier
+        supplier = get_object_or_404(Suppliers, pk=id)
+        modal_title = "Edit Supplier"
+        form_action = reverse('edit_supplier', args=[supplier.pk])
+        editing = True
+    else: # Adding a new supplier
+        supplier = None
+        modal_title = "Add New Record"
+        form_action = reverse('add_supplier')
+        editing = False
+    context = {
+        'modal_title': modal_title,
+        'form_action': form_action,
+        'editing': editing,
+        'supplier': supplier,
+    }
+
+    return render(request, 'html/suppliers.html', context)
+
 def supplier_data(request):
-    suppliers = apps.get_model('inventory', 'Suppliers').objects.all().values('id', 'name', 'contact_info')
+    suppliers = apps.get_model('inventory', 'Suppliers').objects.all().values('id', 'name', 'contact_person', 'contact_number', 'email', 'address')
     data = list(suppliers)
     return JsonResponse({'data': data})
 
@@ -250,3 +277,91 @@ def edit_supplier(request, pk):
 
 def delete_supplier(request, pk):
     return delete_item(request, 'inventory', 'Suppliers', pk)
+
+def branches(request, id=None):
+    if id:  # Editing an existing branch
+        branch = get_object_or_404(Branches, pk=id)
+        modal_title = "Edit Branch"
+        form_action = reverse('edit_branch', args=[branch.pk])
+        editing = True
+    else:  # Adding a new branch
+        branch = None
+        modal_title = "Add New Record"
+        form_action = reverse('add_branch')
+        editing = False
+
+    context = {
+        'modal_title': modal_title,
+        'form_action': form_action,
+        'editing': editing,
+        'branch': branch,
+    }
+    return render(request, 'html/branches.html', context)
+
+def add_branch(request):
+    return add_item(request, 'inventory', 'Branches')
+
+def edit_branch(request, pk):
+    return edit_item(request, 'inventory', 'Branches', pk)
+
+def delete_branch(request, pk):
+    return delete_item(request, 'inventory', 'Branches', pk)
+
+def branch_data(request):
+    branches = apps.get_model('inventory', 'Branches').objects.all().values('id', 'name', 'location')
+    data = list(branches)
+    return JsonResponse({'data': data})
+
+def manage_stocks(request, branch_id, stock_id=None):
+    branch = get_object_or_404(Branches, pk=branch_id)
+    stocks = StockLevel.objects.filter(branch=branch).select_related('product')
+    products = Products.objects.all().select_related('brand')
+    
+    if stock_id:
+        stock = get_object_or_404(StockLevel, pk=stock_id, branch=branch)
+        modal_title = "Edit Stock"
+        form_action = reverse('edit_stock')
+        editing = True
+    else:
+        stock = None
+        modal_title = "Add New Stock"
+        form_action = reverse('add_stock')
+        editing = False
+    
+    context = {
+        'branch': branch,
+        'stocks': stocks,
+        'modal_title': modal_title,
+        'form_action': form_action,
+        'editing': editing,
+        'stock': stock,
+        'products': products,
+    }
+    
+    return render(request, 'html/manage-stocks.html', context)
+
+def stock_data(_request, branch_id=None):
+    if branch_id:
+        stocks = StockLevel.objects.filter(branch__id=branch_id).values('id', 'product__product_name', 'product__brand__name', 'quantity', 'branch__id', 'product__id', 'product__brand__name', 'product__brand__id')
+    else:
+        stocks = StockLevel.objects.all().values('id', 'product__product_name', 'product__brand__name', 'quantity', 'branch__id', 'product__id', 'product__brand__name', 'product__brand__id')
+    stock_levels = []
+    for stock in stocks:
+        if stock['quantity'] < 10:
+            stock['stock_level'] = 'Low'
+        elif stock['quantity'] < 50:
+            stock['stock_level'] = 'Medium'
+        else:
+            stock['stock_level'] = 'High'
+        stock_levels.append(stock)
+    data = list(stock_levels)
+    return JsonResponse({'data': data})
+
+def add_stock(request):
+    return add_item(request, 'inventory', 'StockMovement')
+
+def edit_stock(request, pk):
+    return edit_item(request, 'inventory', 'StockMovement', pk)
+
+def delete_stock(request, pk):
+    return delete_item(request, 'inventory', 'StockMovement', pk)

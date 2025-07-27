@@ -31,7 +31,7 @@
       </div>
     </div>
 
-    <!-- Modal to add/edit record -->
+    <!-- Modal to add/edit/view record -->
     <div class="modal fade" id="productModal" tabindex="-1" aria-labelledby="productModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -58,12 +58,22 @@
                         </div>
                         <div class="col-12 col-md-6 fv-plugins-icon-container">
                             <label class="form-label" for="modalCategory">Category</label>
-                            <input type="text" id="modalCategory" name="category" class="form-control" placeholder="Category" value="{% if editing %}{{ product.category }}{% endif %}">
+                            <select class="form-select" id="modalCategory" name="category" aria-label="Select Category">
+                                <option value="" disabled {% if not editing or not product.category %}selected{% endif %}>Select Category</option>
+                                {% for category in categories %}
+                                    <option value="{{ category.id }}" {% if product.category and product.category.id == category.id %}selected{% endif %}>{{ category.name }}</option>
+                                {% endfor %}
+                            </select>
                             <div class="fv-plugins-message-container invalid-feedback"></div>
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label" for="modalBrand">Brand</label>
-                            <input type="text" id="modalBrand" name="brand" class="form-control" placeholder="Brand" value="{% if editing %}{{ product.brand }}{% endif %}">
+                            <select class="form-select" id="modalBrand" name="brand" aria-label="Select Brand">
+                                <option value="" disabled {% if not product.brand %}selected{% endif %}>Select Brand</option>
+                                {% for brand in brands %}
+                                    <option value="{{ brand.id }}" {% if product.brand and product.brand.id == brand.id %}selected{% endif %}>{{ brand.name }}</option>
+                                {% endfor %}
+                            </select>
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label" for="modalUnitPrice">Unit Price</label>
@@ -71,7 +81,12 @@
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label" for="modalSupplier">Supplier</label>
-                            <input type="text" id="modalSupplier" name="supplier" class="form-control" placeholder="Supplier Name" value="{% if editing %}{{ product.supplier }}{% endif %}">
+                            <select class="form-select" id="modalSupplier" name="supplier" aria-label="Select Supplier">
+                                <option value="" disabled {% if not product.supplier %}selected{% endif %}>Select Supplier</option>
+                                {% for supplier in suppliers %}
+                                    <option value="{{ supplier.id }}" {% if product.supplier and product.supplier.id == supplier.id %}selected{% endif %}>{{ supplier.name }}</option>
+                                {% endfor %}
+                            </select>
                         </div>
                         <div class="col-12 text-center">
                             <button type="submit" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Submit</button>
