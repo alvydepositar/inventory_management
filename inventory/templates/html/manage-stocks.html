@@ -67,6 +67,21 @@
                             <label class="form-label" for="stockProductQuantity">Quantity</label>
                             <input type="text" id="stockProductQuantity" name="quantity" class="form-control" placeholder="Quantity" value="{% if editing %}{{ stock.quantity }}{% endif %}">
                         </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="stockRemarks">Remarks</label>
+                            <textarea id="stockRemarks" name="remarks" class="form-control" placeholder="Remarks" rows="3">{% if editing %}{{ stock.remarks }}{% endif %}</textarea>
+                            <div class="fv-plugins-message-container invalid-feedback"></div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="stockHandledBy">Handled By</label>
+                            <select id="stockHandledBy" name="handled_by" class="form-select">
+                                <option value="">Select User</option>
+                                {% for user in users %}
+                                    <option value="{{ user.id }}" {% if editing and stock.handled_by.id == user.id %}selected{% endif %}>{{ user.username }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="fv-plugins-message-container invalid-feedback"></div>
+                        </div>
 
                         <div class="col-12 text-center">
                             <button type="submit" id="addSupplierBtn" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Submit</button>
