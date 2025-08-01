@@ -43,6 +43,7 @@ urlpatterns = [
     path('edit-branch/<int:pk>/', views.edit_branch, name='edit_branch'),
     path('delete-branch/<int:pk>/', views.delete_branch, name='delete_branch'),
     
+    path('manage-stocks/', views.manage_stocks, name='manage_stocks'),
     path('manage-stocks/<int:branch_id>/', views.manage_stocks, name='manage_stocks'),
     
     path('stock-data/', views.stock_data, name='stock_data_all'),

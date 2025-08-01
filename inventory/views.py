@@ -312,11 +312,17 @@ def branch_data(request):
     data = list(branches)
     return JsonResponse({'data': data})
 
-def manage_stocks(request, branch_id, stock_id=None):
-    branch = get_object_or_404(Branches, pk=branch_id)
-    stocks = StockLevel.objects.filter(branch=branch).select_related('product')
-    products = Products.objects.all().select_related('brand')
+def manage_stocks(request, branch_id=None, stock_id=None):
+    if branch_id:
+        branch = get_object_or_404(Branches, pk=branch_id)
+        stocks = StockLevel.objects.filter(branch=branch).select_related('product')
+        products = Products.objects.all().select_related('brand')
     
+    else:
+        branch = Branches.objects.all()
+        stocks = StockLevel.objects.all().select_related('product')
+        products = Products.objects.all().select_related('brand')
+        
     if stock_id:
         stock = get_object_or_404(StockLevel, pk=stock_id, branch=branch)
         modal_title = "Edit Stock"
@@ -327,17 +333,17 @@ def manage_stocks(request, branch_id, stock_id=None):
         modal_title = "Add New Stock"
         form_action = reverse('add_stock')
         editing = False
-    
+        
     context = {
-        'branch': branch,
-        'stocks': stocks,
-        'modal_title': modal_title,
-        'form_action': form_action,
-        'editing': editing,
-        'stock': stock,
-        'products': products,
-    }
-    
+            'branch': branch,
+            'stocks': stocks,
+            'modal_title': modal_title,
+            'form_action': form_action,
+            'editing': editing,
+            'stock': stock,
+            'products': products,
+        }
+        
     return render(request, 'html/manage-stocks.html', context)
 
 def stock_data(_request, branch_id=None):

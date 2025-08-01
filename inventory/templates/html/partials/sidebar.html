@@ -42,8 +42,8 @@
       <li class="menu-header small text-uppercase">
         <span class="menu-header-text">Stock Management</span>
       </li>
-      <li class="menu-item {% if 'branches' in request.path or 'manage-stocks' in request.path %}active{% endif %}">
-        <a href="{% url 'branches' %}" class="menu-link">
+      <li class="menu-item {% if 'manage-stocks' in request.path %}active{% endif %}">
+        <a href="{% url 'manage_stocks' %}" class="menu-link">
           <i class="menu-icon tf-icons ti ti-clipboard"></i>
           <div data-i18n="Stock">Stock Management</div>
         </a>
@@ -74,6 +74,12 @@
         <a href="{% url 'suppliers' %}" class="menu-link">
           <i class="menu-icon tf-icons ti ti-truck"></i>
           <div data-i18n="Suppliers">Supplier Management</div>
+        </a>
+      </li>
+      <li class="menu-item {% if 'branches' in request.path %}active{% endif %}">
+        <a href="{% url 'branches' %}" class="menu-link">
+          <i class="menu-icon tf-icons ti ti-building"></i>
+          <div data-i18n="Branch">Branch Management</div>
         </a>
       </li>
     </ul>
