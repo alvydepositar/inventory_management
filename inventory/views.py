@@ -12,6 +12,14 @@ def auth_login(request):
 def manage_users(request):
     return render(request, 'html/manage-users.html')
 
+def add_user(request):
+    return add_item(request, 'inventory', 'Users')
+
+def user_data(request):
+    users = Users.objects.all().values()
+    data = list(users)
+    return JsonResponse({'data': data})
+
 def add_item(request, app_label, model_name):
     """
     A dynamic view to add items to the database for different models.
@@ -314,12 +322,12 @@ def branch_data(request):
 
 def manage_stocks(request, branch_id=None, stock_id=None):
     if branch_id:
-        branch = get_object_or_404(Branches, pk=branch_id)
-        stocks = StockLevel.objects.filter(branch=branch).select_related('product')
+        branches = get_object_or_404(Branches, pk=branch_id)
+        stocks = StockLevel.objects.filter(branch=branches).select_related('product')
         products = Products.objects.all().select_related('brand')
     
     else:
-        branch = Branches.objects.all()
+        branches = Branches.objects.all()
         stocks = StockLevel.objects.all().select_related('product')
         products = Products.objects.all().select_related('brand')
         
@@ -335,7 +343,7 @@ def manage_stocks(request, branch_id=None, stock_id=None):
         editing = False
         
     context = {
-            'branch': branch,
+            'branches': branches,
             'stocks': stocks,
             'modal_title': modal_title,
             'form_action': form_action,

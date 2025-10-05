@@ -60,7 +60,7 @@
                             </select>
                             <div class="fv-plugins-message-container invalid-feedback"></div>
                         </div>
-                        <div class="col-12 col-md-6">
+                        <div class="col-12 col-md-4">
                             <label class="form-label" for="stockProduct">Product</label>
                             <select id="stockProduct" name="product" class="form-select">
                                 <option value="">Select Product</option>
@@ -70,7 +70,17 @@
                             </select>
                             <div class="fv-plugins-message-container invalid-feedback"></div>
                         </div>
-                        <div class="col-12 col-md-6">
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" for="stockBranch">Branch</label>
+                            <select id="stockBranch" name="branch" class="form-select">
+                                <option value="">Select Branch</option>
+                                {% for branch in branches %}
+                                    <option value="{{ branch.id }}" {% if editing and stock.branch.id == branch.id %}selected{% endif %}>{{ branch.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="fv-plugins-message-container invalid-feedback"></div>
+                        </div>
+                        <div class="col-12 col-md-4">
                             <label class="form-label" for="stockProductQuantity">Quantity</label>
                             <input type="text" id="stockProductQuantity" name="quantity" class="form-control" placeholder="Quantity" value="{% if editing %}{{ stock.quantity }}{% endif %}">
                         </div>

@@ -5,6 +5,7 @@ urlpatterns = [
     path('', views.auth_login, name='auth_login'),
     
     path('manage-users/', views.manage_users, name='manage_users'),
+    path('users-data/', views.user_data, name='user_data'),
 
     path('add-item/<str:app_label>/<str:model_name>/', views.add_item, name='add_item'),
     path('edit-item/<str:app_label>/<str:model_name>/<int:item_id>/', views.edit_item, name='edit_item'),

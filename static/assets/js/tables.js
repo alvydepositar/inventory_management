@@ -3,7 +3,240 @@
  */
 
 'use strict';
-let productModalInstance, categoryModalInstance, brandModalInstance, supplierModalInstance, branchModalInstance, stockModalInstance;
+let usersModalInstance, productModalInstance, categoryModalInstance, brandModalInstance, supplierModalInstance, branchModalInstance, stockModalInstance;
+
+// Users DataTable and Modal
+if (document.getElementById('userModal')) {
+  document.getElementById('userModal').addEventListener('hidden.bs.modal', function () {
+    // Reset the form when the modal is closed
+    document.getElementById('userForm').reset();
+    document.querySelectorAll('#userForm input').forEach(input => {
+      input.classList.remove('is-invalid');
+      const errorContainer = input.nextElementSibling;
+      if (errorContainer && errorContainer.classList.contains('fv-plugins-message-container')) {
+        errorContainer.innerHTML = '';
+      }
+    });
+  });
+  $(function () {
+    usersModalInstance = new bootstrap.Modal(document.getElementById('userModal'));
+    var dt_basic_table = $('.users-datatables-basic'),
+      dt_basic;
+    // DataTable with buttons
+    // --------------------------------------------------------------------
+    if (dt_basic_table.length) {
+      dt_basic = dt_basic_table.DataTable({
+        ajax: '/users-data/', // Fetch data from the Django endpoint
+        columns: [
+          { data: null, defaultContent: '' }, // Control column
+          { data: null, defaultContent: '' }, // Control column
+          { data: 'id' }, // Checkbox column
+          { data: 'username' },
+          { data: 'email' },
+          { 
+            data: null, 
+            defaultContent: '', 
+            render: function(data, type, row, meta) {
+              return (row.first_name ? row.first_name : '') + ' ' + (row.last_name ? row.last_name : '');
+            }
+          },
+          { data: 'is_staff', render: function (data, type, full, meta) { return data ? 'Admin' : 'User'; } },
+          { data: 'id', defaultContent: '' } // Actions column
+        ],
+        columnDefs: [
+          {
+            className: 'control',
+            orderable: false,
+            searchable: false,
+            responsivePriority: 2,
+            targets: 0,
+            render: function (data, type, full, meta) {
+              return '';
+            }
+          },
+          {
+            targets: 1,
+            orderable: false,
+            searchable: false,
+            responsivePriority: 3,
+            render: function () {
+              return '<input type="checkbox" class="dt-checkboxes form-check-input">';
+            },
+            checkboxes: {
+              selectAllRender: '<input type="checkbox" class="form-check-input">'
+            }
+          },
+          {
+            targets: -1,
+            title: 'Actions',
+            orderable: false,
+            searchable: false,
+            render: function (data, type, full, meta) {
+              return (
+                '<div class="d-inline-block">' +
+                '<a href="javascript:;" class="btn btn-sm btn-icon dropdown-toggle hide-arrow" data-bs-toggle="dropdown"><i class="text-primary ti ti-dots-vertical"></i></a>' +
+                '<ul class="dropdown-menu dropdown-menu-end m-0">' +
+                '<li><a href="javascript:;" class="dropdown-item item-view" data-bs-toggle="modal" data-bs-target="#userModal" data-id="' + full.id + '">Details</a></li>' +
+                '<div class="dropdown-divider"></div>' +
+                '<li><a href="javascript:;" class="dropdown-item text-danger delete-record">Delete</a></li>' +
+                '</ul>' +
+                '</div>' +
+                '<a href="javascript:;" class="btn btn-sm btn-icon item-edit" data-bs-toggle="modal" data-bs-target="#userModal" data-id="' + full.id + '"><i class="text-primary ti ti-pencil"></i></a>'
+              );
+            }
+          }
+        ],
+        order: [[2, 'desc']],
+        dom: '<"card-header flex-column flex-md-row"<"head-label text-center"><"dt-action-buttons text-end pt-3 pt-md-0"B>><"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6 d-flex justify-content-center justify-content-md-end"f>>t<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
+        displayLength: 7,
+        lengthMenu: [7, 10, 25, 50, 75, 100],
+        buttons: [
+          {
+            extend: 'collection',
+            className: 'btn btn-label-primary dropdown-toggle me-2',
+            text: '<i class="ti ti-file-export me-sm-1"></i> <span class="d-none d-sm-inline-block">Export</span>',
+            buttons: [
+              {
+                extend: 'csv',
+                text: '<i class="ti ti-file-text me-sm-1"></i> <span class="d-none d-sm-inline-block">CSV</span>',
+                className: 'dropdown-item',
+                exportOptions: {
+                  columns: [2, 3, 4, 5, 6]
+                }
+              },
+              {
+                extend: 'excel',
+                text: '<i class="ti ti-file-spreadsheet me-sm-1"></i> <span class="d-none d-sm-inline-block">Excel</span>',
+                className: 'dropdown-item',
+                exportOptions: {
+                  columns: [2, 3, 4, 5, 6]
+                }
+              },
+              {
+                extend: 'pdf',
+                text: '<i class="ti ti-file-description me-sm-1"></i> <span class="d-none d-sm-inline-block">PDF</span>',
+                className: 'dropdown-item',
+                exportOptions: {
+                  columns: [2, 3, 4, 5, 6]
+                }
+              },
+              {
+                extend: 'copy',
+                text: '<i class="ti ti-copy me-sm-1"></i> <span class="d-none d-sm-inline-block">Copy</span>',
+                className: 'dropdown-item',
+                exportOptions: {
+                  columns: [2, 3, 4, 5, 6]
+                }
+              }
+            ]
+          },
+          {
+            text: '<i class="ti ti-plus me-sm-1"></i> <span class="d-none d-sm-inline-block">Add New Record</span>',
+            className: 'create-new btn btn-primary',
+            attr: {
+              'data-bs-toggle': 'modal',
+              'data-bs-target': '#userModal'
+            },
+            init: function (api, node) {
+              $(node).removeClass('btn-secondary');
+            }
+          }
+        ],
+        responsive: {
+          details: {
+            display: $.fn.dataTable.Responsive.display.modal({
+              header: function (row) {
+                var data = row.data();
+                return 'Details for ' + data[2]; // Customize the header content
+              }
+            })
+          }
+        }
+      });
+    }
+
+    // Handle view button click
+    $('.users-datatables-basic tbody').on('click', '.item-view', function () {
+      resetModalInputs('userModal');
+      var tr = $(this).closest('tr');
+      var row = dt_basic.row(tr);
+      var data = row.data();
+      // Fill modal fields
+      $('#userModalLabel').text('View User');
+      $('#usersForm').attr('action', '/view-user/' + data.id + '/');
+      $('#usersForm input[name="username"]').val(data.username).prop('readonly', true);
+      $('#usersForm input[name="email"]').val(data.email).prop('readonly', true);
+      $('#usersForm input[name="first_name"]').val(data.first_name).prop('readonly', true);
+      $('#usersForm input[name="last_name"]').val(data.last_name).prop('readonly', true);
+      $('#usersForm input[name="is_staff"]').prop('checked', data.is_staff).prop('disabled', true);
+      // Remove submit button
+      $('#usersForm button[type="submit"]').remove();
+      usersModalInstance.show();
+    });
+
+    // Handle edit button click
+    $('.users-datatables-basic tbody').on('click', '.item-edit', function () {
+      resetModalInputs('userModal'); // This resets the form
+      var tr = $(this).closest('tr');
+      var row = dt_basic.row(tr);
+      var data = row.data();
+      // Fill modal fields
+      $('#userModalLabel').text('Edit User');
+      $('#usersForm').attr('action', '/edit-user/' + data.id + '/');
+      $('#usersForm input[name="username"]').val(data.username);
+      $('#usersForm input[name="email"]').val(data.email);
+      $('#usersForm input[name="first_name"]').val(data.first_name);
+      $('#usersForm input[name="last_name"]').val(data.last_name);
+      $('#usersForm input[name="is_staff"]').prop('checked', data.is_staff).prop('disabled', false);
+      // Bring the submit button back and cancel button side by side
+      if (!$('#usersForm button[type="submit"]').length && !$('#usersForm button[type="button"]').length) {
+        $('#usersForm .col-12.text-center').html(`
+          <button type="submit" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Submit</button>
+          <button type="button" class="btn btn-secondary waves-effect waves-light" data-bs-dismiss="modal">Cancel</button>
+        `);
+      }
+    });
+  });
+}
+
+if (document.getElementById('usersForm')) {
+  document.getElementById('usersForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    // Ensure the CSRF token is correctly retrieved
+    const csrfTokenElement = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (!csrfTokenElement) {
+      console.error('CSRF token not found. Ensure the input field with name="csrfmiddlewaretoken" exists.');
+      return;
+    }
+    const csrfToken = csrfTokenElement.value;
+    fetch(this.action, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-CSRFToken': csrfToken
+      }
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert(data.message);
+          location.reload(); // Reload the page or update the table dynamically
+        } else {
+          // Display validation errors
+          for (const [field, errors] of Object.entries(data.errors)) {
+            const input = document.querySelector(`[name=${field}]`);
+            if (input) {
+              const errorContainer = input.nextElementSibling;
+              errorContainer.innerHTML = errors.join('<br>');
+              input.classList.add('is-invalid');
+            }
+          }
+        }
+      })
+      .catch(error => console.error('Error:', error));
+  });
+}
 
 // Product DataTable and Modal
 if (document.getElementById('productModal')) {

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from inventory.models import Products, Categories, Suppliers, Brands
+from inventory.models import Products, Categories, Suppliers, Brands, Users
 from django.utils.html import format_html
 
 class ProductAdmin(admin.ModelAdmin):
@@ -16,3 +16,4 @@ admin.site.register(Products, ProductAdmin)
 admin.site.register(Categories)
 admin.site.register(Suppliers)
 admin.site.register(Brands)
+admin.site.register(Users)
