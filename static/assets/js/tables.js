@@ -40,7 +40,7 @@ if (document.getElementById('userModal')) {
               return (row.first_name ? row.first_name : '') + ' ' + (row.last_name ? row.last_name : '');
             }
           },
-          { data: 'is_staff', render: function (data, type, full, meta) { return data ? 'Admin' : 'User'; } },
+          { data: 'user_role', render: function (data, type, full, meta) { return data.charAt(0).toUpperCase() + data.slice(1).replace('_', ' '); } },
           { data: 'id', defaultContent: '' } // Actions column
         ],
         columnDefs: [
@@ -163,14 +163,14 @@ if (document.getElementById('userModal')) {
       var data = row.data();
       // Fill modal fields
       $('#userModalLabel').text('View User');
-      $('#usersForm').attr('action', '/view-user/' + data.id + '/');
-      $('#usersForm input[name="username"]').val(data.username).prop('readonly', true);
-      $('#usersForm input[name="email"]').val(data.email).prop('readonly', true);
-      $('#usersForm input[name="first_name"]').val(data.first_name).prop('readonly', true);
-      $('#usersForm input[name="last_name"]').val(data.last_name).prop('readonly', true);
-      $('#usersForm input[name="is_staff"]').prop('checked', data.is_staff).prop('disabled', true);
+      $('#userForm').attr('action', '/view-user/' + data.id + '/');
+      $('#userForm input[name="username"]').val(data.username).prop('readonly', true);
+      $('#userForm input[name="email"]').val(data.email).prop('readonly', true);
+      $('#userForm input[name="first_name"]').val(data.first_name).prop('readonly', true);
+      $('#userForm input[name="last_name"]').val(data.last_name).prop('readonly', true);
+      $('#userForm input[name="is_staff"]').prop('checked', data.is_staff).prop('disabled', true);
       // Remove submit button
-      $('#usersForm button[type="submit"]').remove();
+      $('#userForm button[type="submit"]').remove();
       usersModalInstance.show();
     });
 
@@ -182,15 +182,17 @@ if (document.getElementById('userModal')) {
       var data = row.data();
       // Fill modal fields
       $('#userModalLabel').text('Edit User');
-      $('#usersForm').attr('action', '/edit-user/' + data.id + '/');
-      $('#usersForm input[name="username"]').val(data.username);
-      $('#usersForm input[name="email"]').val(data.email);
-      $('#usersForm input[name="first_name"]').val(data.first_name);
-      $('#usersForm input[name="last_name"]').val(data.last_name);
-      $('#usersForm input[name="is_staff"]').prop('checked', data.is_staff).prop('disabled', false);
+      $('#userForm').attr('action', '/edit-user/' + data.id + '/');
+      $('#userForm input[name="username"]').val(data.username);
+      $('#userForm input[name="email"]').val(data.email);
+      $('#userForm input[name="first_name"]').val(data.first_name);
+      $('#userForm input[name="last_name"]').val(data.last_name);
+      $('#userForm input[name="is_staff"]').prop('checked', data.is_staff).prop('disabled', false);
+      $('#userForm input[name="password"]').val(''); // Clear password field
+      $('#userForm input[name="confirm_password"]').val(''); // Clear confirm password field
       // Bring the submit button back and cancel button side by side
-      if (!$('#usersForm button[type="submit"]').length && !$('#usersForm button[type="button"]').length) {
-        $('#usersForm .col-12.text-center').html(`
+      if (!$('#userForm button[type="submit"]').length && !$('#userForm button[type="button"]').length) {
+        $('#userForm .col-12.text-center').html(`
           <button type="submit" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Submit</button>
           <button type="button" class="btn btn-secondary waves-effect waves-light" data-bs-dismiss="modal">Cancel</button>
         `);
@@ -199,8 +201,8 @@ if (document.getElementById('userModal')) {
   });
 }
 
-if (document.getElementById('usersForm')) {
-  document.getElementById('usersForm').addEventListener('submit', function (e) {
+if (document.getElementById('userForm')) {
+  document.getElementById('userForm').addEventListener('submit', function (e) {
     e.preventDefault();
     const formData = new FormData(this);
     // Ensure the CSRF token is correctly retrieved

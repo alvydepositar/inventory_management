@@ -6,6 +6,9 @@ urlpatterns = [
     
     path('manage-users/', views.manage_users, name='manage_users'),
     path('users-data/', views.user_data, name='user_data'),
+    path('add-user/', views.add_user, name='add_user'),
+    path('edit-user/<int:pk>/', views.edit_user, name='edit_user'),
+    path('delete-user/<int:pk>/', views.delete_user, name='delete_user'),
 
     path('add-item/<str:app_label>/<str:model_name>/', views.add_item, name='add_item'),
     path('edit-item/<str:app_label>/<str:model_name>/<int:item_id>/', views.edit_item, name='edit_item'),

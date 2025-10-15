@@ -41,6 +41,16 @@
                           {% if editing %}
                               <input type="hidden" name="user_id" value="{{ user.id }}">
                           {% endif %}
+                            <div class="col-12 col-md-6">
+                              <label class="form-label" for="userFirstName">First Name</label>
+                              <input type="text" id="userFirstName" name="first_name" class="form-control" placeholder="First Name" value="{% if editing %}{{ user.first_name }}{% endif %}">
+                              <div class="fv-plugins-message-container invalid-feedback"></div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                              <label class="form-label" for="userLastName">Last Name</label>
+                              <input type="text" id="userLastName" name="last_name" class="form-control" placeholder="Last Name" value="{% if editing %}{{ user.last_name }}{% endif %}">
+                              <div class="fv-plugins-message-container invalid-feedback"></div>
+                            </div>
                           <div class="col-12 col-md-4">
                               <label class="form-label" for="userName">User Name</label>
                               <input type="text" id="userName" name="username" class="form-control" placeholder="User Name" value="{% if editing %}{{ user.username }}{% endif %}">
@@ -54,24 +64,14 @@
                           <div class="col-12 col-md-4">
                               <label class="form-label" for="userRole">Role</label>
                               <select id="userRole" name="role" class="form-select">
-                                  <option value="admin" {% if editing and user.role == 'admin' %}selected{% endif %}>Admin</option>
-                                  <option value="staff" {% if editing and user.role == 'staff' %}selected{% endif %}>Staff</option>
-                                  <option value="supplier" {% if editing and user.role == 'supplier' %}selected{% endif %}>Supplier</option>
+                                <script> console.log("Editing:", {{ editing|yesno:"true,false" }}); </script>
+                                <script> console.log("User Role:", {{ user.user_role }}); </script>
+                                  <option value="admin" {% if editing and user.user_role == 'admin' %}selected{% endif %}>Admin</option>
+                                  <option value="user" {% if editing and user.user_role == 'user' %}selected{% endif %}>User</option>
+                                  <option value="branch_manager" {% if editing and user.user_role == 'branch_manager' %}selected{% endif %}>Branch Manager</option>
                               </select>
                               <div class="fv-plugins-message-container invalid-feedback"></div>
                           </div>
-                          {% if not editing %}
-                          <div class="col-12 col-md-6">
-                              <label class="form-label" for="userPassword">Password</label>
-                              <input type="password" id="userPassword" name="password" class="form-control" placeholder="Password">
-                              <div class="fv-plugins-message-container invalid-feedback"></div>
-                          </div>
-                          <div class="col-12 col-md-6">
-                              <label class="form-label" for="userConfirmPassword">Confirm Password</label>
-                              <input type="password" id="userConfirmPassword" name="confirm_password" class="form-control" placeholder="Confirm Password">
-                              <div class="fv-plugins-message-container invalid-feedback"></div>
-                          </div>
-                          {% endif %}
                           <div class="col-12 text-center">
                               <button type="submit" id="addUserBtn" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Submit</button>
                               <button type="button" class="btn btn-label-secondary waves-effect" data-bs-dismiss="modal" aria-label="Close">

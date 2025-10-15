@@ -8,9 +8,7 @@ class Users(models.Model):
     first_name = models.CharField(max_length=30, blank=True)
     last_name = models.CharField(max_length=30, blank=True)
     is_active = models.BooleanField(default=True)
-    is_staff = models.BooleanField(default=False)
-    is_admin = models.BooleanField(default=False)
-    is_branch_manager = models.BooleanField(default=False)
+    user_role = models.CharField(max_length=20, choices=[('admin', 'Admin'), ('user', 'User'), ('branch_manager', 'Branch Manager')], default='user')
     last_login = models.DateTimeField(null=True, blank=True)
     date_joined = models.DateTimeField(auto_now_add=True)
 

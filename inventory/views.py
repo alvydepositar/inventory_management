@@ -20,6 +20,23 @@ def user_data(request):
     data = list(users)
     return JsonResponse({'data': data})
 
+def edit_user(request, pk):
+    if request.method == 'POST':
+        form = modelform_factory(Users, fields='__all__')(request.POST)
+        if form.is_valid():
+            user = form.save(commit=False)
+            user.id = pk  # Ensure we update the correct user
+            user.save()
+            return redirect('manage_users')  # Redirect to the user management page after saving
+    else:
+        user = get_object_or_404(Users, pk=pk)
+        form = modelform_factory(Users, fields='__all__')(instance=user)
+    
+    return edit_item(request, 'inventory', 'Users', pk)
+
+def delete_user(request, pk):
+    return delete_item(request, 'inventory', 'Users', pk)
+
 def add_item(request, app_label, model_name):
     """
     A dynamic view to add items to the database for different models.
