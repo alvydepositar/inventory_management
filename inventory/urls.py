@@ -2,7 +2,8 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path('', views.auth_login, name='auth_login'),
+    path('', views.login_view, name='auth_login'),
+    path('logout/', views.logout_view, name='logout'),
     
     path('manage-users/', views.manage_users, name='manage_users'),
     path('users-data/', views.user_data, name='user_data'),
@@ -52,8 +53,16 @@ urlpatterns = [
     
     path('stock-data/', views.stock_data, name='stock_data_all'),
     path('stock-data/<int:branch_id>/', views.stock_data, name='stock_data'),
+    path('movement-data/', views.movement_data, name='movement_data'),
     path('add-stock/', views.add_stock, name='add_stock'),
     path('edit-stock/<int:pk>/', views.edit_stock, name='edit_stock'),
     path('delete-stock/<int:pk>/', views.delete_stock, name='delete_stock'),
+
+    # New pages
+    path('stock-history/', views.stock_history, name='stock_history'),
+    path('dashboard/', views.dashboard, name='dashboard'),
+    path('account/', views.account, name='account'),
+    path('account/update/', views.account_update, name='account_update'),
+    path('account/change-password/', views.account_change_password, name='account_change_password'),
 
 ]

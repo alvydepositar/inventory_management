@@ -4,7 +4,7 @@ class Users(models.Model):
     id = models.AutoField(primary_key=True)
     username = models.CharField(max_length=150, unique=True)
     email = models.EmailField(unique=True)
-    password = models.CharField(max_length=128)
+    password = models.CharField(max_length=128, blank=True)
     first_name = models.CharField(max_length=30, blank=True)
     last_name = models.CharField(max_length=30, blank=True)
     is_active = models.BooleanField(default=True)
@@ -82,9 +82,14 @@ class StockLevel(models.Model):
 
     class Meta:
         unique_together = ('branch', 'product')
+        indexes = [
+            models.Index(fields=['branch']),
+            models.Index(fields=['product']),
+        ]
 
     def __str__(self):
-        return f"{self.branch.name} - {self.product.name} = {self.quantity}"
+        # Products has field `product_name`
+        return f"{self.branch.name} - {self.product.product_name} = {self.quantity}"
     
     
 class StockMovement(models.Model):
@@ -102,6 +107,16 @@ class StockMovement(models.Model):
     handled_by = models.ForeignKey(Users, null=True, blank=True, on_delete=models.SET_NULL)
     date = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
+    balance_after = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['branch']),
+            models.Index(fields=['product']),
+            models.Index(fields=['date']),
+            models.Index(fields=['transaction_type']),
+        ]
 
     def __str__(self):
-        return f"{self.transaction_type} - {self.transaction_id} - {self.product.name}"
+        # Products has field `product_name`
+        return f"{self.transaction_type} - {self.transaction_id} - {self.product.product_name}"

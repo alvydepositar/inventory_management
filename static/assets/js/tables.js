@@ -3,6 +3,14 @@
  */
 
 'use strict';
+// Redirect to login if any jQuery AJAX call hits 401 (unauthenticated)
+if (window.jQuery) {
+  $(document).ajaxError(function (event, jqxhr) {
+    if (jqxhr && jqxhr.status === 401) {
+      window.location.href = '/';
+    }
+  });
+}
 let usersModalInstance, productModalInstance, categoryModalInstance, brandModalInstance, supplierModalInstance, branchModalInstance, stockModalInstance;
 
 // Users DataTable and Modal
@@ -10,6 +18,8 @@ if (document.getElementById('userModal')) {
   document.getElementById('userModal').addEventListener('hidden.bs.modal', function () {
     // Reset the form when the modal is closed
     document.getElementById('userForm').reset();
+    // Reset action to default Add endpoint to avoid editing previous record
+    document.getElementById('userForm').setAttribute('action', '/add-user/');
     document.querySelectorAll('#userForm input').forEach(input => {
       input.classList.remove('is-invalid');
       const errorContainer = input.nextElementSibling;
@@ -155,6 +165,13 @@ if (document.getElementById('userModal')) {
       });
     }
 
+    // Ensure Add New Record always targets the add endpoint
+    $(document).on('click', '.create-new[data-bs-target="#userModal"]', function () {
+      resetModalInputs('userModal');
+      $('#userModalLabel').text('Add New User');
+      $('#userForm').attr('action', '/add-user/');
+    });
+
     // Handle view button click
     $('.users-datatables-basic tbody').on('click', '.item-view', function () {
       resetModalInputs('userModal');
@@ -168,7 +185,7 @@ if (document.getElementById('userModal')) {
       $('#userForm input[name="email"]').val(data.email).prop('readonly', true);
       $('#userForm input[name="first_name"]').val(data.first_name).prop('readonly', true);
       $('#userForm input[name="last_name"]').val(data.last_name).prop('readonly', true);
-      $('#userForm input[name="is_staff"]').prop('checked', data.is_staff).prop('disabled', true);
+      $('#userForm select[name="user_role"]').val(String(data.user_role)).prop('disabled', true);
       // Remove submit button
       $('#userForm button[type="submit"]').remove();
       usersModalInstance.show();
@@ -187,9 +204,8 @@ if (document.getElementById('userModal')) {
       $('#userForm input[name="email"]').val(data.email);
       $('#userForm input[name="first_name"]').val(data.first_name);
       $('#userForm input[name="last_name"]').val(data.last_name);
-      $('#userForm input[name="is_staff"]').prop('checked', data.is_staff).prop('disabled', false);
+      $('#userForm select[name="user_role"]').val(String(data.user_role)).prop('disabled', false);
       $('#userForm input[name="password"]').val(''); // Clear password field
-      $('#userForm input[name="confirm_password"]').val(''); // Clear confirm password field
       // Bring the submit button back and cancel button side by side
       if (!$('#userForm button[type="submit"]').length && !$('#userForm button[type="button"]').length) {
         $('#userForm .col-12.text-center').html(`
@@ -1544,15 +1560,23 @@ if (document.getElementById('stockModal')) {
   // --------------------------------------------------------------------
 
   if (dt_basic_table.length) {
+    function buildStockUrl() {
+      const branchId = $('#levelBranch').val() || (window.currentBranchId ? String(window.currentBranchId) : '');
+      const productId = $('#levelProduct').val() || '';
+      let url = '/stock-data/' + (branchId ? branchId + '/' : '');
+      if (productId) {
+        url += (url.includes('?') ? '&' : '?') + 'product_id=' + encodeURIComponent(productId);
+      }
+      return url;
+    }
+
     dt_basic = dt_basic_table.DataTable({
-      // Dynamically set the branch_id for the AJAX URL
-      ajax: {
-        url: '/stock-data/' + (window.currentBranchId ? window.currentBranchId + '/' : ''),      
-      },
+      ajax: { url: buildStockUrl() },
       columns: [
         { data: null, defaultContent: '' }, // Control column
         { data: 'id' }, // Checkbox column
         { data: 'id' },
+        { data: 'branch__name' },
         { data: 'product__product_name' },
         { data: 'product__brand__name' },
         { data: 'quantity' },
@@ -1584,9 +1608,9 @@ if (document.getElementById('stockModal')) {
         },
         // Add custom render for Stock Level column
         {
-          targets: 6, // Stock Level column index
+          targets: 7, // Stock Level column index
           render: function (data, type, full, meta) {
-            let value = data ? data.toLowerCase() : '';
+            let value = data.toLowerCase();
             let colorClass = '';
             if (value === 'low') {
               colorClass = 'bg-danger text-white';
@@ -1600,29 +1624,21 @@ if (document.getElementById('stockModal')) {
             return '<span class="badge ' + colorClass + '" style="font-size:1em;">' + data + '</span>';
           }
         },
-        {
-          targets: -1,
-          title: 'Actions',
-          orderable: false,
-          searchable: false,
-          render: function (data, type, full, meta) {
-            return (
-              '<div class="d-inline-block">' +
-              '<a href="javascript:;" class="btn btn-sm btn-icon dropdown-toggle hide-arrow" data-bs-toggle="dropdown"><i class="text-primary ti ti-dots-vertical"></i></a>' +
-              '<ul class="dropdown-menu dropdown-menu-end m-0">' +
-              '<li><a href="javascript:;" class="dropdown-item item-view" data-bs-toggle="modal" data-bs-target="#stockModal" data-id="' + full.id + '">Details</a></li>' +
-              '<div class="dropdown-divider"></div>' +
-              '<li><a href="javascript:;" class="dropdown-item text-danger delete-record">Delete</a></li>' +
-              '</ul>' +
-              '</div>' +
-              '<a href="javascript:;" class="btn btn-sm btn-icon item-edit" data-bs-toggle="modal" data-bs-target="#stockModal" data-id="' + full.id + '"><i class="text-primary ti ti-pencil"></i></a>'
-            );
+          {
+            targets: -1,
+            title: 'Actions',
+            orderable: false,
+            searchable: false,
+            render: function (data, type, full, meta) {
+              return (
+                '<a href="javascript:;" class="btn btn-sm btn-primary item-adjust" data-bs-toggle="modal" data-bs-target="#stockModal" data-id="' + full.id + '"><i class="ti ti-adjustments"></i> Adjust</a>'
+              );
+            }
           }
-        }
       ],
       order: [[2, 'desc']],
       dom: '<"card-header flex-column flex-md-row"<"head-label text-center"><"dt-action-buttons text-end pt-3 pt-md-0"B>><"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6 d-flex justify-content-center justify-content-md-end"f>>t<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
-      displayLength: 7,
+      displayLength: 10,
       lengthMenu: [7, 10, 25, 50, 75, 100],
       buttons: [
         {
@@ -1660,72 +1676,94 @@ if (document.getElementById('stockModal')) {
         }
       }
     });
+
+    // Move filters into the DataTable header (beside export button)
+    try {
+      const $actionBar = $('.dt-action-buttons');
+      if ($actionBar.length) {
+        const branchOptions = $('#levelBranch').html();
+        const productOptions = $('#levelProduct').html();
+        const currentBranch = $('#levelBranch').val() || '';
+        const currentProduct = $('#levelProduct').val() || '';
+
+        const $inline = $('<div class="dt-inline-filters d-flex align-items-center flex-wrap gap-2 me-2"></div>');
+        const $branch = $('<select id="levelBranchInline" class="form-select form-select-sm" aria-label="Branch filter (inline)"></select>').html(branchOptions).val(currentBranch);
+        const $product = $('<select id="levelProductInline" class="form-select form-select-sm" aria-label="Product filter (inline)"></select>').html(productOptions).val(currentProduct);
+        const $clear = $('<button type="button" id="levelInlineClear" class="btn btn-sm btn-outline-primary">Clear</button>');
+
+        $inline.append($branch).append($product).append($clear);
+        // Prepend so filters appear to the left of export button group
+        $actionBar.prepend($inline);
+
+        // Hide the original filter card
+        const $originalCard = $('#levelBranch').closest('.card');
+        if ($originalCard.length) { $originalCard.addClass('d-none'); }
+
+        // Sync events: inline -> original (reuse existing listeners)
+        $branch.on('change', function(){
+          $('#levelBranch').val(this.value).trigger('change');
+        });
+        $product.on('change', function(){
+          $('#levelProduct').val(this.value).trigger('change');
+        });
+        $clear.on('click', function(){
+          $branch.val('');
+          $product.val('');
+          $('#levelBranch').val('').trigger('change');
+          $('#levelProduct').val('').trigger('change');
+        });
+      }
+    } catch (e) {
+      console.warn('Inline filter injection failed', e);
+    }
+
+    // Prefill modal selects from current filters when creating a new transaction
+    $(document).on('click', '.create-new[data-bs-target="#stockModal"]', function(){
+      $('#stockModalLabel').text('Add Stock Transaction');
+      $('#stockForm').attr('action', '/add-stock/');
+      var b = $('#levelBranch').val();
+      var p = $('#levelProduct').val();
+      if (b) $('#stockBranch').val(String(b));
+      if (p) $('#stockProduct').val(String(p));
+      $('#stockType').val('IN');
+      $('#stockProductQuantity').val('');
+    });
+
+    // Filters: reload on change
+    $(document).on('change', '#levelBranch', function(){
+      window.currentBranchId = this.value || null;
+      dt_basic.ajax.url(buildStockUrl()).load();
+    });
+    $(document).on('change', '#levelProduct', function(){
+      dt_basic.ajax.url(buildStockUrl()).load();
+    });
+    $(document).on('click', '#levelClearFilters', function(){
+      $('#levelBranch').val('');
+      $('#productColumnFilter').val('');
+      window.currentBranchId = null;
+      dt_basic.ajax.url(buildStockUrl()).load();
+    });
   }
 
-  // Handle view button click
-  $('.stock-datatables-basic tbody').on('click', '.item-view', function () {
+  // Handle adjust button click for Stock Level rows (creates a movement)
+  $('.stock-datatables-basic tbody').on('click', '.item-adjust', function () {
+    resetModalInputs('stockModal');
     var tr = $(this).closest('tr');
     var row = dt_basic.row(tr);
     var data = row.data();
 
-    // Fill modal fields
-    $('#stockModalLabel').text('View stock');
-    $('#stockForm').attr('action', '/view-stock/' + data.id + '/');
-    $('#stockForm input[name="stock_id"]').val(data.id).prop('readonly', true);
-    $('#stockForm input[name="name"]').val(data.name).prop('readonly', true);
-    $('#stockForm textarea[name="location"]').val(data.location).prop('readonly', true);
-
-    // Remove submit button
-    $('#stockForm button[type="submit"]').remove();
-    // Remove cancel button if it exists
-    $('#stockForm button[type="button"]').remove();
+    // Fill modal defaults for quick adjust
+    $('#stockModalLabel').text('Adjust Stock');
+    $('#stockForm').attr('action', '/add-stock/');
+    $('#stockForm select[name="product"]').val(String(data.product__id));
+    $('#stockForm select[name="branch"]').val(String(data.branch__id));
+    $('#stockForm input[name="quantity"]').val('');
+    $('#stockForm select[name="transaction_type"]').val('IN');
 
     stockModalInstance.show();
   });
 
-  // Handle edit button click
-  $('.stock-datatables-basic tbody').on('click', '.item-edit', function () {
-    var tr = $(this).closest('tr');
-    var row = dt_basic.row(tr);
-    var data = row.data();
-
-    // Fill modal fields
-    $('#stockModalLabel').text('Edit stock');
-    $('#stockForm').attr('action', '/edit-stock/' + data.id + '/');
-    $('#stockForm input[name="stock_id"]').val(data.id).prop('readonly', true);
-    $('#stockForm input[name="name"]').val(data.name);
-    $('#stockForm textarea[name="location"]').val(data.location);
-
-    // Show the modal
-    stockModalInstance.show();
-  });
-
-  // Delete Record
-  $('.stock-datatables-basic tbody').on('click', '.delete-record', function () {
-    var tr = $(this).closest('tr');
-    var row = dt_basic.row(tr);
-    var data = row.data();
-
-    // Perform the delete action here
-    if (confirm('Are you sure you want to delete this record?')) {
-      // Send a request to the server to delete the record
-      fetch('/delete-stock/' + data.id, {
-        method: 'DELETE',
-        headers: {
-          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-        }
-      })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            alert(data.message);
-            row.remove().draw();
-          } else {
-            alert('Error deleting record: ' + data.message);
-          }
-        });
-    }
-  });
+  // Deleting stock levels is not supported from the aggregate table; movements can be edited/deleted separately if needed.
 
   // After initializing the DataTable
   $('.head-label.text-center').html('<h5 class="card-title mb-0">Branch Stocks</h5>');
@@ -1738,6 +1776,76 @@ if (document.getElementById('stockModal')) {
 });
 }
 
+// Stock Movements DataTable
+$(function () {
+  var mv_table = $('.movement-datatables-basic');
+  if (!mv_table.length) return;
+
+  // Initialize date range picker
+  if (document.getElementById('mvDateRange')) {
+    flatpickr('#mvDateRange', { mode: 'range', dateFormat: 'Y-m-d' });
+  }
+
+  function buildMovementUrl() {
+    const params = new URLSearchParams();
+    const b = $('#mvBranch').val() || (window.currentBranchId ? String(window.currentBranchId) : '');
+    const p = $('#mvProduct').val() || '';
+    const t = $('#mvType').val() || '';
+    const dr = $('#mvDateRange').val() || '';
+    if (b) params.set('branch_id', b);
+    if (p) params.set('product_id', p);
+    if (t) params.set('type', t);
+    if (dr && dr.includes(' to ')) {
+      const parts = dr.split(' to ');
+      if (parts[0]) params.set('date_from', parts[0]);
+      if (parts[1]) params.set('date_to', parts[1]);
+    }
+    return '/movement-data/?' + params.toString();
+  }
+
+  var mv_dt = mv_table.DataTable({
+    ajax: { url: buildMovementUrl() },
+    columns: [
+      { data: null, defaultContent: '' },
+      { data: 'date' },
+      { data: 'transaction_id' },
+      { data: 'transaction_type' },
+      { data: 'branch__name' },
+      { data: 'product__product_name', render: function (data, type, row) { return data + ' (' + (row['product__brand__name'] || '') + ')'; } },
+      { data: 'quantity' },
+      { data: 'balance_after' },
+      { data: 'handled_by__username', defaultContent: '' },
+      { data: 'remarks', defaultContent: '' }
+    ],
+    columnDefs: [
+      { className: 'control', orderable: false, searchable: false, targets: 0, render: function () { return ''; } },
+      { targets: 1, render: function (d) { return d ? moment(d).format('YYYY-MM-DD HH:mm') : ''; } },
+      { targets: 3, render: function (d) { return d === 'IN' ? '<span class="badge bg-success">IN</span>' : '<span class="badge bg-danger">OUT</span>'; } }
+    ],
+    order: [[1, 'desc']],
+    dom: '<"card-header flex-column flex-md-row"<"head-label text-center"><"dt-action-buttons text-end pt-3 pt-md-0"B>><"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6 d-flex justify-content-center justify-content-md-end"f>>t<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
+    buttons: [
+      {
+        extend: 'collection',
+        className: 'btn btn-label-primary dropdown-toggle me-2',
+        text: '<i class="ti ti-file-export me-sm-1"></i> <span class="d-none d-sm-inline-block">Export</span>',
+        buttons: [
+          { extend: 'csv', className: 'dropdown-item' },
+          { extend: 'excel', className: 'dropdown-item' },
+          { extend: 'pdf', className: 'dropdown-item' },
+          { extend: 'copy', className: 'dropdown-item' }
+        ]
+      }
+    ]
+  });
+
+  function reloadMovements() {
+    mv_dt.ajax.url(buildMovementUrl()).load();
+  }
+
+  $(document).on('change', '#mvBranch,#mvProduct,#mvType', reloadMovements);
+  $(document).on('change', '#mvDateRange', function () { setTimeout(reloadMovements, 50); });
+});
 if (document.getElementById('stockForm')) {
   document.getElementById('stockForm').addEventListener('submit', function (e) {
     e.preventDefault();
