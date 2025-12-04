@@ -1,0 +1,62 @@
+{% extends 'html/base.html' %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="container-xxl flex-grow-1 container-p-y">
+    <h4 class="fw-bold mb-4">Dashboard</h4>
+    <div class="row g-3">
+      <div class="col-6 col-md-3">
+        <div class="card text-center p-3">
+          <div class="text-muted">Products</div>
+          <div class="display-6">{{ counts.products }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card text-center p-3">
+          <div class="text-muted">Categories</div>
+          <div class="display-6">{{ counts.categories }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card text-center p-3">
+          <div class="text-muted">Brands</div>
+          <div class="display-6">{{ counts.brands }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card text-center p-3">
+          <div class="text-muted">Suppliers</div>
+          <div class="display-6">{{ counts.suppliers }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card text-center p-3">
+          <div class="text-muted">Branches</div>
+          <div class="display-6">{{ counts.branches }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card text-center p-3">
+          <div class="text-muted">Stock Items</div>
+          <div class="display-6">{{ counts.stock_items }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card text-center p-3">
+          <div class="text-muted">Total Qty</div>
+          <div class="display-6">{{ counts.total_quantity }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card text-center p-3">
+          <div class="text-muted">Low Stock</div>
+          <div class="display-6">{{ counts.low_stock }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

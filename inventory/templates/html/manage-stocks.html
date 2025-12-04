@@ -7,28 +7,66 @@
 <div class="content-wrapper">
   <!-- Content -->
   <div class="container-xxl flex-grow-1 container-p-y">
-    <div class="col-12 mb-4">
-        <h4 class="fw-bold py-3 mb-4">Manage Stocks</h4>
+    {% if branch %}
+    <script>window.currentBranchId={{ branch.id }};</script>
+    {% else %}
+    <script>window.currentBranchId=null;</script>
+    {% endif %}
+    
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <h4 class="fw-bold m-0">Stock Management</h4>
+      <a class="btn btn-outline-primary" href="{% url 'stock_history' %}{% if branch %}?branch_id={{ branch.id }}{% endif %}">
+        <i class="ti ti-history me-1"></i> View Stock History
+      </a>
     </div>
+
+    <div class="card mb-3 p-3" aria-labelledby="stockFiltersLabel">
+      <div class="mb-2 text-muted" id="stockFiltersLabel">Filter by branch and product</div>
+      <div class="row g-2 align-items-end">
+        <div class="col-12 col-md-4">
+          <label class="form-label" for="levelBranch">Branch</label>
+          <select id="levelBranch" class="form-select" aria-label="Branch filter">
+            <option value="">All Branches</option>
+            {% for b in branches %}
+              <option value="{{ b.id }}" {% if branch and branch.id == b.id %}selected{% endif %}>{{ b.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-5">
+          <label class="form-label" for="levelProduct">Product</label>
+          <select id="levelProduct" class="form-select" aria-label="Product filter">
+            <option value="">All Products</option>
+            {% for p in products %}
+              <option value="{{ p.id }}">{{ p.product_name }} ({{ p.brand.name }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-3">
+          <button id="levelClearFilters" class="btn btn-outline-primary w-100" type="button" aria-label="Clear filters">Clear Filters</button>
+        </div>
+      </div>
+    </div>
+    
     <!-- DataTable with Buttons -->
     <div class="card">
       <div class="card-datatable table-responsive pt-0">
         <table class="stock-datatables-basic table">
           <thead>
             <tr>
-                <th></th>
-                <th></th>
-                <th>ID</th>
-                <th>Product</th>
-                <th>Brand</th>
-                <th>Quantity</th>
-                <th>Stock Level</th>
-                <th>Actions</th>
+              <th></th>
+              <th></th>
+              <th>ID</th>
+              <th>Branch</th>
+              <th>Product</th>
+              <th>Brand</th>
+              <th>Quantity</th>
+              <th>Stock Level</th>
+              <th>Actions</th>
             </tr>
           </thead>
         </table>
+        </div>
       </div>
-    </div>
 
     <!-- Modal to add/edit record -->
     <div class="modal fade" id="stockModal" tabindex="-1" aria-labelledby="stockModalLabel" aria-hidden="true">
@@ -39,31 +77,24 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="stockForm" class="row g-3 fv-plugins-bootstrap5 fv-plugins-framework" method="POST" action="{{ form_action }}">
+                    <form id="stockForm" class="row g-3 fv-plugins-bootstrap5 fv-plugins-framework" method="POST" action="{% url 'add_stock' %}" novalidate>
                         {% csrf_token %}
                         {% if editing %}
                             <input type="hidden" name="stock_id" value="{{ stock.id }}">
                         {% endif %}
-                        <input type="hidden" name="branch" value="{{ branch.id }}">
                         <div class="col-12 col-md-6">
                             <label class="form-label" for="stockType">Type of Transaction</label>
-                            <select id="stockType" name="type" class="form-select">
-                                <option value="add" {% if editing and stock.type == 'IN' %}selected{% endif %}>Stock In</option>
-                                <option value="remove" {% if editing and stock.transaction_type == 'OUT' %}selected{% endif %}>Stock Out</option>
+                            <select id="stockType" name="transaction_type" class="form-select" required aria-required="true">
+                                <option value="IN" {% if editing and stock.transaction_type == 'IN' %}selected{% endif %}>Stock In</option>
+                                <option value="OUT" {% if editing and stock.transaction_type == 'OUT' %}selected{% endif %}>Stock Out</option>
                             </select>
                             <div class="fv-plugins-message-container invalid-feedback"></div>
                         </div>
-                        <div class="col-12 col-md-6">
-                            <label class="form-label" for="stockHandledBy">Handled By</label>
-                            <select id="stockHandledBy" name="handled_by" class="form-select" disabled>
-                                <option value="Ulan" {% if editing and stock.handled_by.id == user.id %}selected{% endif %}>Logged In User</option>
-                            </select>
-                            <div class="fv-plugins-message-container invalid-feedback"></div>
-                        </div>
+                        <!-- Handled By will be set by server from the logged-in session user. -->
                         <div class="col-12 col-md-4">
                             <label class="form-label" for="stockProduct">Product</label>
-                            <select id="stockProduct" name="product" class="form-select">
-                                <option value="">Select Product</option>
+                            <select id="stockProduct" name="product" class="form-select" required aria-required="true">
+                                <option value="" disabled selected>Select Product</option>
                                 {% for product in products %}
                                     <option value="{{ product.id }}" {% if editing and stock.product.id == product.id %}selected{% endif %}>{{ product.product_name }} ({{ product.brand.name }})</option>
                                 {% endfor %}
@@ -72,8 +103,8 @@
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label" for="stockBranch">Branch</label>
-                            <select id="stockBranch" name="branch" class="form-select">
-                                <option value="">Select Branch</option>
+                            <select id="stockBranch" name="branch" class="form-select" required aria-required="true">
+                                <option value="" disabled selected>Select Branch</option>
                                 {% for branch in branches %}
                                     <option value="{{ branch.id }}" {% if editing and stock.branch.id == branch.id %}selected{% endif %}>{{ branch.name }}</option>
                                 {% endfor %}
@@ -82,7 +113,8 @@
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label" for="stockProductQuantity">Quantity</label>
-                            <input type="text" id="stockProductQuantity" name="quantity" class="form-control" placeholder="Quantity" value="{% if editing %}{{ stock.quantity }}{% endif %}">
+                            <input type="number" inputmode="numeric" min="1" step="1" id="stockProductQuantity" name="quantity" class="form-control" placeholder="Quantity" value="{% if editing %}{{ stock.quantity }}{% endif %}" required aria-required="true">
+                            <div class="fv-plugins-message-container invalid-feedback"></div>
                         </div>
                         <div class="col-12 col-md-12">
                             <label class="form-label" for="stockRemarks">Remarks</label>
@@ -102,8 +134,8 @@
         </div>
     </div>
     <!-- Modal to add/edit record -->
-  
-    <!--/ DataTable with Buttons -->  
+    
+    <!--/ DataTable with Buttons -->
   </div>
 </div>
 {% endblock %}
