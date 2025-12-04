@@ -1,0 +1,119 @@
+{% extends 'html/base.html' %}
+
+{% block title %}Product Management{% endblock %}
+
+{% block content %}
+<!-- Content wrapper -->
+<div class="content-wrapper">
+  <!-- Content -->
+  <div class="container-xxl flex-grow-1 container-p-y">
+    <!-- DataTable with Buttons -->
+    <div class="col-12 mb-4">
+        <h4 class="fw-bold py-3 mb-4">Manage Product Details</h4>
+    </div>
+    <div class="row">
+        <div class="col-6 mb-4">
+            <div class="card">
+                <div class="card-datatable table-responsive pt-0">
+                    <table class="category-datatables-basic table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th></th>
+                                <th>Category</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-6 mb-4">
+            <div class="card">
+                <div class="card-datatable table-responsive pt-0">
+                    <table class="brand-datatables-basic table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th></th>
+                                <th>Brands</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category modal to add/edit -->
+    <div class="modal fade" id="categoryModal" tabindex="-1" aria-labelledby="categoryModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-md">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="categoryModalLabel">{{ category_modal_title }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="categoryForm" class="row g-3 fv-plugins-bootstrap5 fv-plugins-framework" method="POST" action="{{ category_form_action }}">
+                        {% csrf_token %}
+                        {% if category_editing %}
+                            <input type="hidden" name="category_id" value="{{ category.id }}">
+                        {% endif %}
+                        <div class="col-12 col-md-12 fv-plugins-icon-container">
+                            <label class="form-label" for="modalCategoryName">Category Name</label>
+                            <input type="text" id="modalCategoryName" name="name" class="form-control" placeholder="Category Name" value="{% if category_editing %}{{ category.name }}{% endif %}">
+                            <div class="fv-plugins-message-container invalid-feedback"></div>
+                        </div>
+                        <div class="col-12 text-center">
+                            <button type="submit" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Submit</button>
+                            <button type="button" class="btn btn-label-secondary waves-effect" data-bs-dismiss="modal" aria-label="Close">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Category modal to add/edit -->
+
+    <!-- Brand modal to add/edit -->
+    <div class="modal fade" id="brandModal" tabindex="-1" aria-labelledby="brandModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-md">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="brandModalLabel">{{ brand_modal_title }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="brandForm" class="row g-3 fv-plugins-bootstrap5 fv-plugins-framework" method="POST" action="{{ brand_form_action }}">
+                        {% csrf_token %}
+                        {% if brand_editing %}
+                            <input type="hidden" name="brand_id" value="{{ brand.id }}">
+                        {% else %}
+                            <input type="hidden" name="brand_id" value="">
+                        {% endif %}
+                        <div class="col-12 col-md-12 fv-plugins-icon-container">
+                            <label class="form-label" for="modalBrandName">Brand Name</label>
+                            <input type="text" id="modalBrandName" name="name" class="form-control" placeholder="Brand Name" value="{% if brand_editing %}{{ brand.name }}{% endif %}">
+                            <div class="fv-plugins-message-container invalid-feedback"></div>
+                        </div>
+                        <div class="col-12 text-center">
+                            <button type="submit" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Submit</button>
+                            <button type="button" class="btn btn-label-secondary waves-effect" data-bs-dismiss="modal" aria-label="Close">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Brand modal to add/edit -->
+
+    <!--/ DataTable with Buttons -->  
+  </div>
+</div>
+{% endblock %}

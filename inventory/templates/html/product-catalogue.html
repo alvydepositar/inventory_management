@@ -1,0 +1,107 @@
+{% extends 'html/base.html' %}
+
+{% block title %}Product Catalog{% endblock %}
+
+{% block content %}
+<!-- Content wrapper -->
+<div class="content-wrapper">
+  <!-- Content -->
+  <div class="container-xxl flex-grow-1 container-p-y">
+    <div class="col-12 mb-4">
+        <h4 class="fw-bold py-3 mb-4">Manage Products</h4>
+    </div>
+    <!-- DataTable with Buttons -->
+    <div class="card">
+      <div class="card-datatable table-responsive pt-0">
+        <table class="product-datatables-basic table">
+          <thead>
+            <tr>
+              <th></th>
+              <th></th>
+              <th>ID</th>
+              <th>Product Name</th>
+              <th>Category</th>
+              <th>Brand</th>
+              <th>Unit Price</th>
+              <th>Supplier</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+        </table>
+      </div>
+    </div>
+
+    <!-- Modal to add/edit/view record -->
+    <div class="modal fade" id="productModal" tabindex="-1" aria-labelledby="productModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="productModalLabel">{{ modal_title }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="productForm" class="row g-3 fv-plugins-bootstrap5 fv-plugins-framework" method="POST" action="{{ form_action }}">
+                        {% csrf_token %}
+                        {% if editing %}
+                            <input type="hidden" name="product_id" value="{{ product.id }}">
+                        {% endif %}
+                        <div class="col-12 col-md-6 fv-plugins-icon-container">
+                            <label class="form-label" for="modalProductID">Product ID</label>
+                            <input type="text" id="modalProductID" name="product_id" class="form-control" placeholder="PRD-001"
+                                value="{% if editing %}{{ product.product_id }}{% endif %}" {% if editing %}readonly{% endif %}>
+                            <div class="fv-plugins-message-container invalid-feedback"></div>
+                        </div>
+                        <div class="col-12 col-md-6 fv-plugins-icon-container">
+                            <label class="form-label" for="modalProductName">Product Name</label>
+                            <input type="text" id="modalProductName" name="product_name" class="form-control" placeholder="16L Paint" value="{% if editing %}{{ product.product_name }}{% endif %}">
+                            <div class="fv-plugins-message-container invalid-feedback"></div>
+                        </div>
+                        <div class="col-12 col-md-6 fv-plugins-icon-container">
+                            <label class="form-label" for="modalCategory">Category</label>
+                            <select class="form-select" id="modalCategory" name="category" aria-label="Select Category">
+                                <option value="" disabled {% if not editing or not product.category %}selected{% endif %}>Select Category</option>
+                                {% for category in categories %}
+                                    <option value="{{ category.id }}" {% if product.category and product.category.id == category.id %}selected{% endif %}>{{ category.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="fv-plugins-message-container invalid-feedback"></div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="modalBrand">Brand</label>
+                            <select class="form-select" id="modalBrand" name="brand" aria-label="Select Brand">
+                                <option value="" disabled {% if not product.brand %}selected{% endif %}>Select Brand</option>
+                                {% for brand in brands %}
+                                    <option value="{{ brand.id }}" {% if product.brand and product.brand.id == brand.id %}selected{% endif %}>{{ brand.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="modalUnitPrice">Unit Price</label>
+                            <input type="number" id="modalUnitPrice" name="unit_price" class="form-control" placeholder="0.00" value="{% if editing %}{{ product.unit_price }}{% endif %}">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="modalSupplier">Supplier</label>
+                            <select class="form-select" id="modalSupplier" name="supplier" aria-label="Select Supplier">
+                                <option value="" disabled {% if not product.supplier %}selected{% endif %}>Select Supplier</option>
+                                {% for supplier in suppliers %}
+                                    <option value="{{ supplier.id }}" {% if product.supplier and product.supplier.id == supplier.id %}selected{% endif %}>{{ supplier.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-12 text-center">
+                            <button type="submit" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Submit</button>
+                            <button type="button" class="btn btn-label-secondary waves-effect" data-bs-dismiss="modal" aria-label="Close">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Modal to add/edit record -->
+  
+    <!--/ DataTable with Buttons -->  
+  </div>
+</div>
+{% endblock %}

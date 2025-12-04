@@ -15,6 +15,76 @@ if (document.getElementById('layout-menu')) {
 }
 
 (function () {
+  if (typeof Waves !== 'undefined') {
+    Waves.init();
+    Waves.attach(".btn[class*='btn-']:not([class*='btn-outline-']):not([class*='btn-label-'])", ['waves-light']);
+    Waves.attach("[class*='btn-outline-']");
+    Waves.attach("[class*='btn-label-']");
+    Waves.attach('.pagination .page-item .page-link');
+  }
+
+  // Initialize menu
+  //-----------------
+
+  let layoutMenuEl = document.querySelectorAll('#layout-menu');
+  layoutMenuEl.forEach(function (element) {
+    menu = new Menu(element, {
+      orientation: isHorizontalLayout ? 'horizontal' : 'vertical',
+      closeChildren: isHorizontalLayout ? true : false,
+      // ? This option only works with Horizontal menu
+      showDropdownOnHover: localStorage.getItem('templateCustomizer-' + templateName + '--ShowDropdownOnHover') // If value(showDropdownOnHover) is set in local storage
+        ? localStorage.getItem('templateCustomizer-' + templateName + '--ShowDropdownOnHover') === 'true' // Use the local storage value
+        : window.templateCustomizer !== undefined // If value is set in config.js
+        ? window.templateCustomizer.settings.defaultShowDropdownOnHover // Use the config.js value
+        : true // Use this if you are not using the config.js and want to set value directly from here
+    });
+    // Change parameter to true if you want scroll animation
+    window.Helpers.scrollToActive((animate = false));
+    window.Helpers.mainMenu = menu;
+  });
+
+  // Initialize menu togglers and bind click on each
+  let menuToggler = document.querySelectorAll('.layout-menu-toggle');
+  menuToggler.forEach(item => {
+    item.addEventListener('click', event => {
+      event.preventDefault();
+      window.Helpers.toggleCollapsed();
+      // Enable menu state with local storage support if enableMenuLocalStorage = true from config.js
+      if (config.enableMenuLocalStorage && !window.Helpers.isSmallScreen()) {
+        try {
+          localStorage.setItem(
+            'templateCustomizer-' + templateName + '--LayoutCollapsed',
+            String(window.Helpers.isCollapsed())
+          );
+        } catch (e) {}
+      }
+    });
+  });
+
+    // Menu swipe gesture
+
+  // Detect swipe gesture on the target element and call swipe In
+  window.Helpers.swipeIn('.drag-target', function (e) {
+    window.Helpers.setCollapsed(false);
+  });
+
+  // Detect swipe gesture on the target element and call swipe Out
+  window.Helpers.swipeOut('#layout-menu', function (e) {
+    if (window.Helpers.isSmallScreen()) window.Helpers.setCollapsed(true);
+  });
+
+  // Display in main menu when menu scrolls
+  let menuInnerContainer = document.getElementsByClassName('menu-inner'),
+    menuInnerShadow = document.getElementsByClassName('menu-inner-shadow')[0];
+  if (menuInnerContainer.length > 0 && menuInnerShadow) {
+    menuInnerContainer[0].addEventListener('ps-scroll-y', function () {
+      if (this.querySelector('.ps__thumb-y').offsetTop) {
+        menuInnerShadow.style.display = 'block';
+      } else {
+        menuInnerShadow.style.display = 'none';
+      }
+    });
+  }
   // Notification
   // ------------
   const notificationMarkAsReadAll = document.querySelector('.dropdown-notifications-all');

@@ -1,0 +1,109 @@
+{% extends 'html/base.html' %}
+
+{% block title %}Stock Management{% endblock %}
+
+{% block content %}
+<!-- Content wrapper -->
+<div class="content-wrapper">
+  <!-- Content -->
+  <div class="container-xxl flex-grow-1 container-p-y">
+    <div class="col-12 mb-4">
+        <h4 class="fw-bold py-3 mb-4">Manage Stocks</h4>
+    </div>
+    <!-- DataTable with Buttons -->
+    <div class="card">
+      <div class="card-datatable table-responsive pt-0">
+        <table class="stock-datatables-basic table">
+          <thead>
+            <tr>
+                <th></th>
+                <th></th>
+                <th>ID</th>
+                <th>Product</th>
+                <th>Brand</th>
+                <th>Quantity</th>
+                <th>Stock Level</th>
+                <th>Actions</th>
+            </tr>
+          </thead>
+        </table>
+      </div>
+    </div>
+
+    <!-- Modal to add/edit record -->
+    <div class="modal fade" id="stockModal" tabindex="-1" aria-labelledby="stockModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="stockModalLabel">{{ modal_title }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="stockForm" class="row g-3 fv-plugins-bootstrap5 fv-plugins-framework" method="POST" action="{{ form_action }}">
+                        {% csrf_token %}
+                        {% if editing %}
+                            <input type="hidden" name="stock_id" value="{{ stock.id }}">
+                        {% endif %}
+                        <input type="hidden" name="branch" value="{{ branch.id }}">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="stockType">Type of Transaction</label>
+                            <select id="stockType" name="type" class="form-select">
+                                <option value="add" {% if editing and stock.type == 'IN' %}selected{% endif %}>Stock In</option>
+                                <option value="remove" {% if editing and stock.transaction_type == 'OUT' %}selected{% endif %}>Stock Out</option>
+                            </select>
+                            <div class="fv-plugins-message-container invalid-feedback"></div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="stockHandledBy">Handled By</label>
+                            <select id="stockHandledBy" name="handled_by" class="form-select" disabled>
+                                <option value="Ulan" {% if editing and stock.handled_by.id == user.id %}selected{% endif %}>Logged In User</option>
+                            </select>
+                            <div class="fv-plugins-message-container invalid-feedback"></div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" for="stockProduct">Product</label>
+                            <select id="stockProduct" name="product" class="form-select">
+                                <option value="">Select Product</option>
+                                {% for product in products %}
+                                    <option value="{{ product.id }}" {% if editing and stock.product.id == product.id %}selected{% endif %}>{{ product.product_name }} ({{ product.brand.name }})</option>
+                                {% endfor %}
+                            </select>
+                            <div class="fv-plugins-message-container invalid-feedback"></div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" for="stockBranch">Branch</label>
+                            <select id="stockBranch" name="branch" class="form-select">
+                                <option value="">Select Branch</option>
+                                {% for branch in branches %}
+                                    <option value="{{ branch.id }}" {% if editing and stock.branch.id == branch.id %}selected{% endif %}>{{ branch.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="fv-plugins-message-container invalid-feedback"></div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" for="stockProductQuantity">Quantity</label>
+                            <input type="text" id="stockProductQuantity" name="quantity" class="form-control" placeholder="Quantity" value="{% if editing %}{{ stock.quantity }}{% endif %}">
+                        </div>
+                        <div class="col-12 col-md-12">
+                            <label class="form-label" for="stockRemarks">Remarks</label>
+                            <textarea id="stockRemarks" name="remarks" class="form-control" placeholder="Remarks" rows="3">{% if editing %}{{ stock.remarks }}{% endif %}</textarea>
+                            <div class="fv-plugins-message-container invalid-feedback"></div>
+                        </div>
+
+                        <div class="col-12 text-center">
+                            <button type="submit" id="addSupplierBtn" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Submit</button>
+                            <button type="button" class="btn btn-label-secondary waves-effect" data-bs-dismiss="modal" aria-label="Close">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Modal to add/edit record -->
+  
+    <!--/ DataTable with Buttons -->  
+  </div>
+</div>
+{% endblock %}

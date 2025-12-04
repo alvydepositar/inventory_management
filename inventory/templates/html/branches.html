@@ -1,0 +1,72 @@
+{% extends 'html/base.html' %}
+
+{% block title %}Branch Stock Management{% endblock %}
+
+{% block content %}
+<!-- Content wrapper -->
+<div class="content-wrapper">
+  <!-- Content -->
+  <div class="container-xxl flex-grow-1 container-p-y">
+    <div class="col-12 mb-4">
+        <h4 class="fw-bold py-3 mb-4">Manage Branches and Stocks</h4>
+    </div>
+    <!-- DataTable with Buttons -->
+    <div class="card">
+      <div class="card-datatable table-responsive pt-0">
+        <table class="branch-datatables-basic table">
+          <thead>
+            <tr>
+                <th></th>
+                <th></th>
+                <th>ID</th>
+                <th>Branch Name</th>
+                <th>Location</th>
+                <th>Actions</th>
+            </tr>
+          </thead>
+        </table>
+      </div>
+    </div>
+
+    <!-- Modal to add/edit record -->
+    <div class="modal fade" id="branchModal" tabindex="-1" aria-labelledby="branchModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="branchModalLabel">{{ modal_title }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="branchForm" class="row g-3 fv-plugins-bootstrap5 fv-plugins-framework" method="POST" action="{{ form_action }}">
+                        {% csrf_token %}
+                        {% if editing %}
+                            <input type="hidden" name="branch_id" value="{{ branch.id }}">
+                        {% endif %}
+                        <div class="col-12 fv-plugins-icon-container">
+                            <label class="form-label" for="modalBranchName">Branch Name</label>
+                            <input type="text" id="modalBranchName" name="name" class="form-control" placeholder="Branch Name" value="{% if editing %}{{ branch.name }}{% endif %}">
+                            <div class="fv-plugins-message-container invalid-feedback"></div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="modalLocation">Location</label>
+                            <textarea id="modalLocation" name="location" class="form-control" placeholder="Location" rows="3">{% if editing %}{{ branch.location }}{% endif %}</textarea>
+                            <div class="fv-plugins-message-container invalid-feedback"></div>
+                        </div>
+
+                        <div class="col-12 text-center">
+                            <button type="submit" id="addSupplierBtn" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Submit</button>
+                            <button type="button" class="btn btn-label-secondary waves-effect" data-bs-dismiss="modal" aria-label="Close">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Modal to add/edit record -->
+  
+    <!--/ DataTable with Buttons -->  
+  </div>
+</div>
+{% endblock %}

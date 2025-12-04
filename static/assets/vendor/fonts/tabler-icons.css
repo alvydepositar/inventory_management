@@ -3597,6 +3597,10 @@
   content: "\ebac";
 }
 
+.ti-currency-peso:before {
+  content: "\f65f";
+}
+
 .ti-currency-real:before {
   content: "\ee63";
 }
