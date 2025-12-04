@@ -51,6 +51,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'inventory_management.middleware.LoginRequiredMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -142,3 +143,25 @@ STATICFILES_DIRS = [
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Authentication redirects
+LOGIN_URL = '/'
+LOGIN_REDIRECT_URL = '/product-catalogue/'
+LOGOUT_REDIRECT_URL = '/'
+
+# Authentication backends (email or username)
+AUTHENTICATION_BACKENDS = [
+    'inventory_management.auth_backends.EmailOrUsernameModelBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+# Cookie and security best practices (tune for production)
+# Note: In local dev over HTTP, keep *_SECURE = False to avoid cookie issues.
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SECURE = False  # Set True in production (HTTPS)
+CSRF_COOKIE_SECURE = False     # Set True in production (HTTPS)
+# SECURE_SSL_REDIRECT = True   # Enable in production with HTTPS
+X_FRAME_OPTIONS = 'DENY'

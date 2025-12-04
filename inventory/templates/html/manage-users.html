@@ -27,7 +27,7 @@
         </div>
       </div>
 
-      <!-- Modal to add new record -->
+      <!-- Modal to add/edit record -->
       <div class="modal fade" id="userModal" tabindex="-1" aria-labelledby="userModalLabel" aria-hidden="true">
           <div class="modal-dialog modal-lg">
               <div class="modal-content">
@@ -36,7 +36,7 @@
                       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                   </div>
                   <div class="modal-body">
-                      <form id="userForm" class="row g-3 fv-plugins-bootstrap5 fv-plugins-framework" method="POST" action="{{ form_action }}">
+                      <form id="userForm" class="row g-3 fv-plugins-bootstrap5 fv-plugins-framework" method="POST" action="{% url 'add_user' %}">
                           {% csrf_token %}
                           {% if editing %}
                               <input type="hidden" name="user_id" value="{{ user.id }}">
@@ -62,10 +62,13 @@
                               <div class="fv-plugins-message-container invalid-feedback"></div>
                           </div>
                           <div class="col-12 col-md-4">
+                              <label class="form-label" for="userPassword">Password</label>
+                              <input type="password" id="userPassword" name="password" class="form-control" placeholder="Password">
+                              <div class="fv-plugins-message-container invalid-feedback"></div>
+                          </div>
+                          <div class="col-12 col-md-4">
                               <label class="form-label" for="userRole">Role</label>
-                              <select id="userRole" name="role" class="form-select">
-                                <script> console.log("Editing:", {{ editing|yesno:"true,false" }}); </script>
-                                <script> console.log("User Role:", {{ user.user_role }}); </script>
+                              <select id="userRole" name="user_role" class="form-select">
                                   <option value="admin" {% if editing and user.user_role == 'admin' %}selected{% endif %}>Admin</option>
                                   <option value="user" {% if editing and user.user_role == 'user' %}selected{% endif %}>User</option>
                                   <option value="branch_manager" {% if editing and user.user_role == 'branch_manager' %}selected{% endif %}>Branch Manager</option>

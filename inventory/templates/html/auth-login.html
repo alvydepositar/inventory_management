@@ -73,8 +73,12 @@
               <h5 class="mb-1 pt-2">Welcome to Color Smile's Inventory!</h5>
               <p class="mb-4">Please sign in to manage your inventory</p>
 
-              <form id="formAuthentication" class="mb-3" action="#" method="POST">
+              {% if error %}
+              <div class="alert alert-danger" role="alert">{{ error }}</div>
+              {% endif %}
+              <form id="formAuthentication" class="mb-3" action="" method="POST">
                 {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.GET.next|default:'' }}">
                 <div class="mb-3">
                   <label for="email" class="form-label">Email or Username</label>
                   <input
@@ -106,7 +110,7 @@
                 </div>
                 <div class="mb-3">
                   <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="remember-me" />
+                    <input class="form-check-input" type="checkbox" id="remember-me" name="remember" />
                     <label class="form-check-label" for="remember-me"> Remember Me </label>
                   </div>
                 </div>

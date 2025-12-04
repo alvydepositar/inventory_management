@@ -1,0 +1,76 @@
+{% extends 'html/base.html' %}
+
+{% block title %}Stock History{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="container-xxl flex-grow-1 container-p-y">
+    {% if branch %}
+    <script>window.currentBranchId={{ branch.id }};</script>
+    {% else %}
+    <script>window.currentBranchId=null;</script>
+    {% endif %}
+
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h4 class="fw-bold m-0">Stock Movements</h4>
+    </div>
+
+    <div class="card mb-3 p-3">
+      <div class="row g-2 align-items-end">
+        <div class="col-12 col-md-3">
+          <label class="form-label" for="mvBranch">Branch</label>
+          <select id="mvBranch" class="form-select">
+            <option value="">All Branches</option>
+            {% for b in branches %}
+              <option value="{{ b.id }}" {% if branch and branch.id == b.id %}selected{% endif %}>{{ b.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label" for="mvProduct">Product</label>
+          <select id="mvProduct" class="form-select">
+            <option value="">All Products</option>
+            {% for p in products %}
+              <option value="{{ p.id }}">{{ p.product_name }} ({{ p.brand.name }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label" for="mvType">Type</label>
+          <select id="mvType" class="form-select">
+            <option value="">All</option>
+            <option value="IN">IN</option>
+            <option value="OUT">OUT</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="form-label" for="mvDateRange">Date Range</label>
+          <input id="mvDateRange" class="form-control" placeholder="Select date range" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-datatable table-responsive pt-0">
+        <table class="movement-datatables-basic table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Date</th>
+              <th>Txn ID</th>
+              <th>Type</th>
+              <th>Branch</th>
+              <th>Product</th>
+              <th>Qty</th>
+              <th>Balance</th>
+              <th>Handled By</th>
+              <th>Remarks</th>
+            </tr>
+          </thead>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

@@ -10,21 +10,21 @@
 // JS global variables
 let config = {
   colors: {
-    primary: '#7367f0',
-    secondary: '#a8aaae',
+    primary: '#FFEB3B',
+    secondary: '#6e6e73',
     success: '#28c76f',
     info: '#00cfe8',
-    warning: '#ff9f43',
+    warning: '#FFEB3B',
     danger: '#ea5455',
     dark: '#4b4b4b',
     black: '#000',
     white: '#fff',
     cardColor: '#fff',
-    bodyBg: '#f8f7fa',
+    bodyBg: '#FFFEF2',
     bodyColor: '#6f6b7d',
-    headingColor: '#5d596c',
-    textMuted: '#a5a3ae',
-    borderColor: '#dbdade'
+    headingColor: '#5b5200',
+    textMuted: '#8f8b6a',
+    borderColor: '#efe8bd'
   },
   colors_label: {
     primary: '#7367f029',
