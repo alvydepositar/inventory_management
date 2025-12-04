@@ -1,0 +1,87 @@
+{% extends 'html/base.html' %}
+
+{% block title %}Supplier Management{% endblock %}
+
+{% block content %}
+<!-- Content wrapper -->
+<div class="content-wrapper">
+  <!-- Content -->
+  <div class="container-xxl flex-grow-1 container-p-y">
+    <div class="col-12 mb-4">
+        <h4 class="fw-bold py-3 mb-4">Manage Suppliers</h4>
+    </div>
+    <!-- DataTable with Buttons -->
+    <div class="card">
+      <div class="card-datatable table-responsive pt-0">
+        <table class="supplier-datatables-basic table">
+          <thead>
+            <tr>
+                <th></th>
+                <th></th>
+                <th>ID</th>
+                <th>Supplier Name</th>
+                <th>Contact Person</th>
+                <th>Email</th>
+                <th>Contact Info</th>
+                <th>Address</th>
+                <th>Actions</th>
+            </tr>
+          </thead>
+        </table>
+      </div>
+    </div>
+
+    <!-- Modal to add/edit record -->
+    <div class="modal fade" id="supplierModal" tabindex="-1" aria-labelledby="supplierModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="supplierModalLabel">{{ modal_title }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="supplierForm" class="row g-3 fv-plugins-bootstrap5 fv-plugins-framework" method="POST" action="{{ form_action }}">
+                        {% csrf_token %}
+                        {% if editing %}
+                            <input type="hidden" name="supplier_id" value="{{ supplier.id }}">
+                        {% endif %}
+                        <div class="col-12 col-md-6 fv-plugins-icon-container">
+                            <label class="form-label" for="modalSupplierName">Supplier Name</label>
+                            <input type="text" id="modalSupplierName" name="name" class="form-control" placeholder="Supplier Name" value="{% if editing %}{{ supplier.name }}{% endif %}">
+                            <div class="fv-plugins-message-container invalid-feedback"></div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="modalContactInfo">Contact Person</label>
+                            <input type="text" id="modalContactInfo" name="contact_person" class="form-control" placeholder="Contact Person" value="{% if editing %}{{ supplier.contact_person }}{% endif %}">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="modalContactNumber">Contact Number</label>
+                            <input type="text" id="modalContactNumber" name="contact_number" class="form-control" placeholder="Contact Number" value="{% if editing %}{{ supplier.contact_number }}{% endif %}">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="modalEmail">Email</label>
+                            <input type="email" id="modalEmail" name="email" class="form-control" placeholder="Email" value="{% if editing %}{{ supplier.email }}{% endif %}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="modalAddress">Address</label>
+                            <textarea id="modalAddress" name="address" class="form-control" placeholder="Address" rows="3">{% if editing %}{{ supplier.address }}{% endif %}</textarea>
+                            <div class="fv-plugins-message-container invalid-feedback"></div>
+                        </div>
+
+                        <div class="col-12 text-center">
+                            <button type="submit" id="addSupplierBtn" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Submit</button>
+                            <button type="button" class="btn btn-label-secondary waves-effect" data-bs-dismiss="modal" aria-label="Close">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Modal to add/edit record -->
+  
+    <!--/ DataTable with Buttons -->  
+  </div>
+</div>
+{% endblock %}
