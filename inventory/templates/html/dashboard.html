@@ -5,58 +5,141 @@
 {% block content %}
 <div class="content-wrapper">
   <div class="container-xxl flex-grow-1 container-p-y">
-    <h4 class="fw-bold mb-4">Dashboard</h4>
-    <div class="row g-3">
-      <div class="col-6 col-md-3">
-        <div class="card text-center p-3">
-          <div class="text-muted">Products</div>
-          <div class="display-6">{{ counts.products }}</div>
+    <style>
+      .scrollable-select {
+        max-height: 220px;
+        overflow-y: auto;
+      }
+    </style>
+    <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+      <h4 class="fw-bold m-0">Dashboard</h4>
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-12 col-md-4 col-lg-3">
+          <label class="form-label small text-muted mb-1">Branch</label>
+          <select name="branch_id" class="form-select form-select-sm scrollable-select">
+            <option value="">All Branches</option>
+            {% for b in branches %}
+              <option value="{{ b.id }}" {% if selected_branch == b.id %}selected{% endif %}>{{ b.name }}</option>
+            {% endfor %}
+          </select>
         </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="card text-center p-3">
-          <div class="text-muted">Categories</div>
-          <div class="display-6">{{ counts.categories }}</div>
+        <div class="col-12 col-md-4 col-lg-3">
+          <label class="form-label small text-muted mb-1">Category</label>
+          <select name="category_id" class="form-select form-select-sm scrollable-select">
+            <option value="">All Categories</option>
+            {% for c in categories %}
+              <option value="{{ c.id }}" {% if selected_category == c.id %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
         </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="card text-center p-3">
-          <div class="text-muted">Brands</div>
-          <div class="display-6">{{ counts.brands }}</div>
+        <div class="col-12 col-md-4 col-lg-3">
+          <label class="form-label small text-muted mb-1">Product</label>
+          <select name="product_id" class="form-select form-select-sm scrollable-select">
+            <option value="">All Products</option>
+            {% for p in products %}
+              <option value="{{ p.id }}" {% if selected_product == p.id %}selected{% endif %}>{{ p.product_name }}</option>
+            {% endfor %}
+          </select>
         </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="card text-center p-3">
-          <div class="text-muted">Suppliers</div>
-          <div class="display-6">{{ counts.suppliers }}</div>
+        <div class="col-12 col-md-12 col-lg-3 d-flex gap-2 justify-content-start justify-content-lg-end">
+          <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+          <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary btn-sm">Clear</a>
         </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="card text-center p-3">
-          <div class="text-muted">Branches</div>
-          <div class="display-6">{{ counts.branches }}</div>
-        </div>
-      </div>
+      </form>
+    </div>
+
+    <div class="row g-3 mb-3">
       <div class="col-6 col-md-3">
         <div class="card text-center p-3">
           <div class="text-muted">Stock Items</div>
-          <div class="display-6">{{ counts.stock_items }}</div>
+          <div class="display-6">{{ summary.stock_items }}</div>
         </div>
       </div>
       <div class="col-6 col-md-3">
         <div class="card text-center p-3">
           <div class="text-muted">Total Qty</div>
-          <div class="display-6">{{ counts.total_quantity }}</div>
+          <div class="display-6">{{ summary.total_quantity }}</div>
         </div>
       </div>
       <div class="col-6 col-md-3">
         <div class="card text-center p-3">
           <div class="text-muted">Low Stock</div>
-          <div class="display-6">{{ counts.low_stock }}</div>
+          <div class="display-6">{{ summary.low_stock }}</div>
         </div>
       </div>
+      <div class="col-6 col-md-3">
+        <div class="card text-center p-3">
+          <div class="text-muted">Products</div>
+          <div class="display-6">{{ summary.products }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      {% with total=branch_cards|length %}
+      {% for branch in branch_cards %}
+      {% if total == 1 %}
+      <div class="col-12">
+      {% elif total == 2 %}
+      <div class="col-12 col-lg-6">
+      {% else %}
+      <div class="col-12 col-md-6 col-lg-4">
+      {% endif %}
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <h5 class="card-title mb-0">{{ branch.name }}</h5>
+              <span class="badge {% if branch.low_pct >= 50 %}bg-danger{% elif branch.low_pct >= 20 %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                {{ branch.low_count }} low ({{ branch.low_pct }}%)
+              </span>
+            </div>
+            <div class="d-flex gap-3 mb-3">
+              <div>
+                <div class="text-muted small">Total Qty</div>
+                <div class="h4 mb-0">{{ branch.total_qty }}</div>
+              </div>
+              <div>
+                <div class="text-muted small">Distinct SKUs</div>
+                <div class="h4 mb-0">{{ branch.sku_count }}</div>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm mb-0">
+                <thead>
+                  <tr>
+                    <th class="text-muted small">Low stock items</th>
+                    <th class="text-end text-muted small">Qty</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in branch.low_items %}
+                  <tr>
+                    <td>{{ item.product__product_name }}{% if item.product__brand__name %} <span class="text-muted">({{ item.product__brand__name }})</span>{% endif %}</td>
+                    <td class="text-end">{{ item.quantity }}</td>
+                  </tr>
+                  {% empty %}
+                  <tr><td colspan="2" class="text-muted">No low stock items.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card-footer text-end">
+            {% if branch.id %}
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'manage_stocks' branch.id %}">Open branch stocks</a>
+            {% else %}
+            <a class="btn btn-sm btn-outline-secondary disabled" href="javascript:void(0);">No branch</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% empty %}
+      <div class="col-12">
+        <div class="alert alert-secondary mb-0">No stock data found for the selected filters.</div>
+      </div>
+      {% endfor %}
+      {% endwith %}
     </div>
   </div>
 </div>
 {% endblock %}
-

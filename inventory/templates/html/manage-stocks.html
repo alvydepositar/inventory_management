@@ -7,6 +7,12 @@
 <div class="content-wrapper">
   <!-- Content -->
   <div class="container-xxl flex-grow-1 container-p-y">
+    <style>
+      .scrollable-select {
+        max-height: 220px;
+        overflow-y: auto;
+      }
+    </style>
     {% if branch %}
     <script>window.currentBranchId={{ branch.id }};</script>
     {% else %}
@@ -22,29 +28,29 @@
 
     <div class="card mb-3 p-3" aria-labelledby="stockFiltersLabel">
       <div class="mb-2 text-muted" id="stockFiltersLabel">Filter by branch and product</div>
-      <div class="row g-2 align-items-end">
-        <div class="col-12 col-md-4">
+      <form class="row g-2 align-items-end">
+        <div class="col-12 col-md-4 col-lg-4">
           <label class="form-label" for="levelBranch">Branch</label>
-          <select id="levelBranch" class="form-select" aria-label="Branch filter">
+          <select id="levelBranch" class="form-select scrollable-select" aria-label="Branch filter">
             <option value="">All Branches</option>
             {% for b in branches %}
               <option value="{{ b.id }}" {% if branch and branch.id == b.id %}selected{% endif %}>{{ b.name }}</option>
             {% endfor %}
           </select>
         </div>
-        <div class="col-12 col-md-5">
+        <div class="col-12 col-md-4 col-lg-4">
           <label class="form-label" for="levelProduct">Product</label>
-          <select id="levelProduct" class="form-select" aria-label="Product filter">
+          <select id="levelProduct" class="form-select scrollable-select" aria-label="Product filter">
             <option value="">All Products</option>
             {% for p in products %}
               <option value="{{ p.id }}">{{ p.product_name }} ({{ p.brand.name }})</option>
             {% endfor %}
           </select>
         </div>
-        <div class="col-12 col-md-3">
-          <button id="levelClearFilters" class="btn btn-outline-primary w-100" type="button" aria-label="Clear filters">Clear Filters</button>
+        <div class="col-12 col-md-4 col-lg-4 d-flex">
+          <button id="levelClearFilters" class="btn btn-outline-primary w-100 mt-auto" type="button" aria-label="Clear filters">Clear Filters</button>
         </div>
-      </div>
+      </form>
     </div>
     
     <!-- DataTable with Buttons -->

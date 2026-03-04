@@ -8,7 +8,13 @@ class Users(models.Model):
     first_name = models.CharField(max_length=30, blank=True)
     last_name = models.CharField(max_length=30, blank=True)
     is_active = models.BooleanField(default=True)
-    user_role = models.CharField(max_length=20, choices=[('admin', 'Admin'), ('user', 'User'), ('branch_manager', 'Branch Manager')], default='user')
+    USER_ROLES = [
+        ('admin', 'Admin'),
+        ('stock_manager', 'Stock Manager'),
+        ('branch_manager', 'Branch Manager'),
+    ]
+    user_role = models.CharField(max_length=20, choices=USER_ROLES, default='stock_manager')
+    assigned_branch = models.ForeignKey('Branches', on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_users')
     last_login = models.DateTimeField(null=True, blank=True)
     date_joined = models.DateTimeField(auto_now_add=True)
 
@@ -72,19 +78,29 @@ class Branches(models.Model):
     def __str__(self):
         return self.name
     
+class ActiveStockLevelManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(is_active=True)
+
+
 class StockLevel(models.Model):
     id = models.AutoField(primary_key=True)
     branch = models.ForeignKey(Branches, on_delete=models.SET_NULL, null=True)
     product = models.ForeignKey(Products, on_delete=models.SET_NULL, null=True)
     quantity = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
+    objects = ActiveStockLevelManager()
+    all_objects = models.Manager()
 
     class Meta:
-        unique_together = ('branch', 'product')
+        unique_together = ('branch', 'product', 'is_active')
         indexes = [
             models.Index(fields=['branch']),
             models.Index(fields=['product']),
+            models.Index(fields=['is_active']),
         ]
 
     def __str__(self):
