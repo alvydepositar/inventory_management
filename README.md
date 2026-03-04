@@ -10,8 +10,69 @@ This project appears tailored for a paint center (branding in the auth page), bu
 - Categories, Brands, Suppliers CRUD
 - Branches and per-branch stock levels
 - Stock movements (IN/OUT) with handler attribution
-- Simple user management UI with roles: `admin`, `user`, `branch_manager`
+- Simple user management UI with roles: `admin`, `stock_manager`, `branch_manager`
 - Responsive UI using Bootstrap 5; interactive grids using DataTables
+
+## Feature Overview
+
+- **Authentication & RBAC**: Login with username/email; role-based access (admin, stock manager, branch manager). Branch managers are auto-scoped to their assigned branch.
+- **Dashboard**: Branch-level stock cards (totals, SKU count, low-stock %), top low-stock items per branch, and filters for branch/category/product.
+- **Users**: Admins can create/edit/delete users, set roles, active status, and assign branches (for branch managers); passwords are hashed and synced to Django auth.
+- **Products & Masters**: Admin-only management for products, categories, brands, suppliers, and branches via DataTables with CRUD modals.
+- **Stock Management**: Branch/product filters with adjustable column actions; record IN/OUT movements; soft-delete (archive) stock levels with balancing movement; branch managers limited to their branch.
+- **Stock History**: Paginated/history DataTable with filters (branch, product, type, date range); respects branch scoping for branch managers.
+- **Reporting/Exports**: DataTables export buttons (CSV/Excel/PDF/Copy) on user and product grids; stock tables can be filtered and adjusted inline.
+- **Error Handling**: Custom 403/404/500 pages; forbidden access renders the 403 page; AJAX requests receive JSON errors.
+
+## System User Guide
+
+### Roles at a glance
+- **Admin**: Full control (users, master data, branches, stocks, movements, dashboard).
+- **Stock Manager**: Daily inventory operations across branches (stocks, movements, dashboard, history).
+- **Branch Manager**: Same as Stock Manager but limited to their assigned branch (filters and queries are auto-scoped).
+
+### Signing in
+1. Go to `/`.
+2. Enter username or email and password.
+3. If already signed in, you’ll be redirected to the Dashboard.
+
+### Dashboard
+- Use the filters (branch/category/product) to scope data.
+- Review branch cards (totals, SKUs, low-stock %). Click “Open branch stocks” to jump to Manage Stocks pre-filtered.
+- See low-stock items per branch (top 5 by lowest quantity).
+
+### Managing users (Admin only)
+1. Navigate to `Manage Users`.
+2. Add/Edit:
+   - Set role (admin/stock_manager/branch_manager).
+   - For branch managers, assign a branch.
+   - Set Active to allow login; set a password (hashed/synced to Django auth).
+3. Delete removes the app user record.
+
+### Master data (Admin only)
+- Products, Categories, Brands, Suppliers, Branches: Each page uses a DataTable with add/edit/delete modals. Exports available on some tables (CSV/Excel/PDF/Copy).
+
+### Stock management (Stock/Branch managers; Admin)
+- Filters: Branch and Product selectors (scrollable). Clear to reset.
+- Actions:
+  - **Adjust**: Opens modal to record IN/OUT movement.
+  - **Delete**: Archives the stock level (soft delete); if quantity > 0 a balancing OUT movement is created.
+- Branch managers can only see/act on their assigned branch.
+
+### Stock history
+- Filters: branch, product, type, date range.
+- Shows movement log (IN/OUT, qty, balance after, remarks).
+- Branch managers see only their branch.
+
+### Error handling
+- Forbidden access shows the custom 403 page (JSON 403 for AJAX).
+- Missing pages show 404; server errors show 500 with a dashboard link.
+
+### Exports
+- User and product tables include export buttons (CSV/Excel/PDF/Copy). Filters apply to exports.
+
+### Passwords
+- User passwords entered in Manage Users are hashed and synced to Django auth. Use Manage Users to reset passwords; ensure the user is Active.
 
 ## Tech Stack
 
@@ -131,6 +192,12 @@ Defined in `inventory/models.py:1`:
 - Base layout and assets: `inventory/templates/html/base.html:1`
 - DataTables behavior: `static/assets/js/tables.js:1` implements tables and modals for Users, Products, etc.
 - Pages: `inventory/templates/html/*.html` (e.g., `product-catalogue.html:1`, `manage-users.html:1`, `suppliers.html:1`, `branches.html:1`, `manage-stocks.html:1`)
+
+## Roles and Permissions
+
+- `admin`: Full control over all data and pages (users, master data, branches, stocks, movements, dashboard).
+- `stock_manager`: Manages daily inventory operations across branches (view/manage stocks, record IN/OUT, view dashboard/history). No access to user or master-data management.
+- `branch_manager`: Same as stock manager but scoped to their assigned branch (enforced in stock, movement, and dashboard views). No access to user or master-data management.
 
 ## Development Notes
 

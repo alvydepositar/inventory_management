@@ -27,6 +27,12 @@ if (document.getElementById('userModal')) {
         errorContainer.innerHTML = '';
       }
     });
+    const roleSelect = document.querySelector('#userForm select[name="user_role"]');
+    const branchSelect = document.querySelector('#userForm select[name="assigned_branch"]');
+    const activeCheckbox = document.querySelector('#userForm input[name="is_active"]');
+    if (roleSelect) roleSelect.value = '';
+    if (branchSelect) branchSelect.value = '';
+    if (activeCheckbox) activeCheckbox.checked = true;
   });
   $(function () {
     usersModalInstance = new bootstrap.Modal(document.getElementById('userModal'));
@@ -51,6 +57,8 @@ if (document.getElementById('userModal')) {
             }
           },
           { data: 'user_role', render: function (data, type, full, meta) { return data.charAt(0).toUpperCase() + data.slice(1).replace('_', ' '); } },
+          { data: 'is_active', render: function(data){ return data ? '<span class=\"badge bg-success\">Active</span>' : '<span class=\"badge bg-secondary\">Inactive</span>'; } },
+          { data: 'assigned_branch__name', defaultContent: '', render: function(data){ return data || '—'; } },
           { data: 'id', defaultContent: '' } // Actions column
         ],
         columnDefs: [
@@ -111,7 +119,7 @@ if (document.getElementById('userModal')) {
                 text: '<i class="ti ti-file-text me-sm-1"></i> <span class="d-none d-sm-inline-block">CSV</span>',
                 className: 'dropdown-item',
                 exportOptions: {
-                  columns: [2, 3, 4, 5, 6]
+                  columns: [2, 3, 4, 5, 6, 7, 8]
                 }
               },
               {
@@ -119,7 +127,7 @@ if (document.getElementById('userModal')) {
                 text: '<i class="ti ti-file-spreadsheet me-sm-1"></i> <span class="d-none d-sm-inline-block">Excel</span>',
                 className: 'dropdown-item',
                 exportOptions: {
-                  columns: [2, 3, 4, 5, 6]
+                  columns: [2, 3, 4, 5, 6, 7, 8]
                 }
               },
               {
@@ -127,7 +135,7 @@ if (document.getElementById('userModal')) {
                 text: '<i class="ti ti-file-description me-sm-1"></i> <span class="d-none d-sm-inline-block">PDF</span>',
                 className: 'dropdown-item',
                 exportOptions: {
-                  columns: [2, 3, 4, 5, 6]
+                  columns: [2, 3, 4, 5, 6, 7, 8]
                 }
               },
               {
@@ -135,7 +143,7 @@ if (document.getElementById('userModal')) {
                 text: '<i class="ti ti-copy me-sm-1"></i> <span class="d-none d-sm-inline-block">Copy</span>',
                 className: 'dropdown-item',
                 exportOptions: {
-                  columns: [2, 3, 4, 5, 6]
+                  columns: [2, 3, 4, 5, 6, 7, 8]
                 }
               }
             ]
@@ -186,6 +194,8 @@ if (document.getElementById('userModal')) {
       $('#userForm input[name="first_name"]').val(data.first_name).prop('readonly', true);
       $('#userForm input[name="last_name"]').val(data.last_name).prop('readonly', true);
       $('#userForm select[name="user_role"]').val(String(data.user_role)).prop('disabled', true);
+      $('#userForm select[name="assigned_branch"]').val(data.assigned_branch_id ? String(data.assigned_branch_id) : '').prop('disabled', true);
+      $('#userForm input[name="is_active"]').prop('checked', !!data.is_active).prop('disabled', true);
       // Remove submit button
       $('#userForm button[type="submit"]').remove();
       usersModalInstance.show();
@@ -205,6 +215,8 @@ if (document.getElementById('userModal')) {
       $('#userForm input[name="first_name"]').val(data.first_name);
       $('#userForm input[name="last_name"]').val(data.last_name);
       $('#userForm select[name="user_role"]').val(String(data.user_role)).prop('disabled', false);
+      $('#userForm select[name="assigned_branch"]').val(data.assigned_branch_id ? String(data.assigned_branch_id) : '').prop('disabled', false);
+      $('#userForm input[name="is_active"]').prop('checked', !!data.is_active).prop('disabled', false);
       $('#userForm input[name="password"]').val(''); // Clear password field
       // Bring the submit button back and cancel button side by side
       if (!$('#userForm button[type="submit"]').length && !$('#userForm button[type="button"]').length) {
@@ -1631,7 +1643,10 @@ if (document.getElementById('stockModal')) {
             searchable: false,
             render: function (data, type, full, meta) {
               return (
-                '<a href="javascript:;" class="btn btn-sm btn-primary item-adjust" data-bs-toggle="modal" data-bs-target="#stockModal" data-id="' + full.id + '"><i class="ti ti-adjustments"></i> Adjust</a>'
+                '<div class="d-flex flex-wrap gap-1">' +
+                  '<a href="javascript:;" class="btn btn-sm btn-primary item-adjust" data-bs-toggle="modal" data-bs-target="#stockModal" data-id="' + full.id + '"><i class="ti ti-adjustments"></i> Adjust</a>' +
+                  '<button type="button" class="btn btn-sm btn-outline-danger item-delete" data-id="' + full.id + '" data-qty="' + full.quantity + '"><i class="ti ti-trash"></i> Delete</button>' +
+                '</div>'
               );
             }
           }
@@ -1764,6 +1779,41 @@ if (document.getElementById('stockModal')) {
   });
 
   // Deleting stock levels is not supported from the aggregate table; movements can be edited/deleted separately if needed.
+  // Delete stock level (soft delete with balancing movement)
+  $('.stock-datatables-basic tbody').on('click', '.item-delete', function () {
+    var id = $(this).data('id');
+    var qty = Number($(this).data('qty') || 0);
+    var msg = 'Archive this stock level?';
+    if (qty > 0) {
+      msg += ' Remaining quantity (' + qty + ') will be moved out before archiving.';
+    }
+    if (!confirm(msg)) return;
+
+    var csrfEl = document.querySelector('[name=csrfmiddlewaretoken]');
+    var csrf = csrfEl ? csrfEl.value : '';
+
+    fetch('/delete-stock-level/' + id + '/', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrf,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({})
+    })
+      .then(resp => resp.json())
+      .then(data => {
+        if (data.success) {
+          alert(data.message || 'Stock level archived.');
+          dt_basic.ajax.reload(null, false);
+        } else {
+          alert(data.message || 'Failed to archive stock level.');
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        alert('Failed to archive stock level.');
+      });
+  });
 
   // After initializing the DataTable
   $('.head-label.text-center').html('<h5 class="card-title mb-0">Branch Stocks</h5>');
