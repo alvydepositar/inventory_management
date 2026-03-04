@@ -29,7 +29,7 @@ ALLOWED_HOSTS = [
     '8ghsd5f7-8000.asse.devtunnels.ms',
     'localhost',
     '127.0.0.1',
-    'testserver',  # for Django test client
+    'alvydepositar.pythonanywhere.com',  # for Django test client
 ]
 
 
