@@ -40,18 +40,21 @@
         </a>
       </li>
       <li class="menu-header small text-uppercase">
-        <span class="menu-header-text">Stock Management</span>
+        <span class="menu-header-text">Stocks</span>
       </li>
-      <li class="menu-item {% if 'manage-stocks' in request.path %}active{% endif %}">
+      <li class="menu-item {% if 'manage-stocks' in request.path or 'low-stock-alerts' in request.path or 'stock-history' in request.path %}active{% endif %}">
         <a href="{% url 'manage_stocks' %}" class="menu-link">
           <i class="menu-icon tf-icons ti ti-clipboard"></i>
-          <div data-i18n="Stock">Stock Management</div>
+          <div data-i18n="Stock">Stocks</div>
         </a>
       </li>
-      <li class="menu-item {% if 'stock-history' in request.path %}active{% endif %}">
-        <a href="{% url 'stock_history' %}" class="menu-link">
-          <i class="menu-icon tf-icons ti ti-history"></i>
-          <div data-i18n="Stock">Stock History</div>
+      <li class="menu-header small text-uppercase">
+        <span class="menu-header-text">Reports</span>
+      </li>
+      <li class="menu-item {% if 'summary-reports' in request.path or 'daily-sales-report' in request.path %}active{% endif %}">
+        <a href="{% url 'summary_reports' %}" class="menu-link">
+          <i class="menu-icon tf-icons ti ti-report-search"></i>
+          <div data-i18n="Reports">Reports</div>
         </a>
       </li>
 

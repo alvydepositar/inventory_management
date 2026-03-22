@@ -23,6 +23,7 @@
               <th>Category</th>
               <th>Brand</th>
               <th>Unit Price</th>
+              <th>Low Stock Limit</th>
               <th>Supplier</th>
               <th>Actions</th>
             </tr>
@@ -75,11 +76,16 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-12 col-md-6">
+                        <div class="col-12 col-md-4">
                             <label class="form-label" for="modalUnitPrice">Unit Price</label>
                             <input type="number" id="modalUnitPrice" name="unit_price" class="form-control" placeholder="0.00" value="{% if editing %}{{ product.unit_price }}{% endif %}">
                         </div>
-                        <div class="col-12 col-md-6">
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" for="modalLowStockLimit">Low Stock Limit</label>
+                            <input type="number" id="modalLowStockLimit" name="low_stock_limit" class="form-control" min="0" step="1" placeholder="10" value="{% if editing %}{{ product.low_stock_limit }}{% else %}10{% endif %}">
+                            <div class="fv-plugins-message-container invalid-feedback"></div>
+                        </div>
+                        <div class="col-12 col-md-4">
                             <label class="form-label" for="modalSupplier">Supplier</label>
                             <select class="form-select" id="modalSupplier" name="supplier" aria-label="Select Supplier">
                                 <option value="" disabled {% if not product.supplier %}selected{% endif %}>Select Supplier</option>

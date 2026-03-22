@@ -22,6 +22,7 @@ class Products(models.Model):
     category = models.ForeignKey('Categories', on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
     brand = models.ForeignKey('Brands', on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    low_stock_limit = models.PositiveIntegerField(default=10)
     supplier = models.ForeignKey('Suppliers', on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -77,6 +78,7 @@ class StockLevel(models.Model):
     branch = models.ForeignKey(Branches, on_delete=models.SET_NULL, null=True)
     product = models.ForeignKey(Products, on_delete=models.SET_NULL, null=True)
     quantity = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
 
@@ -96,17 +98,28 @@ class StockMovement(models.Model):
     TRANSACTION_CHOICES = (
         ('IN', 'Stock In'),
         ('OUT', 'Stock Out'),
+        ('BLO', 'Backload Out'),
+        ('BLI', 'Backload In'),
     )
     id = models.AutoField(primary_key=True)
     transaction_id = models.CharField(max_length=20, unique=True)
     transaction_type = models.CharField(max_length=3, choices=TRANSACTION_CHOICES)
     branch = models.ForeignKey(Branches, on_delete=models.SET_NULL, null=True, blank=True)
+    related_branch = models.ForeignKey(
+        Branches,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='related_stock_movements',
+    )
     product = models.ForeignKey(Products, on_delete=models.SET_NULL, null=True, blank=True)
     quantity = models.PositiveIntegerField()
     remarks = models.TextField(blank=True)
     handled_by = models.ForeignKey(Users, null=True, blank=True, on_delete=models.SET_NULL)
     date = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
+    transaction_group_id = models.CharField(max_length=20, null=True, blank=True)
+    balance_before = models.PositiveIntegerField(null=True, blank=True)
     balance_after = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:

@@ -50,10 +50,10 @@
         </div>
       </div>
       <div class="col-6 col-md-3">
-        <div class="card text-center p-3">
+        <a href="{% url 'manage_stocks' %}?stocks_section=low-stock#stocks-low-stock" class="card text-center p-3 text-reset text-decoration-none">
           <div class="text-muted">Low Stock</div>
           <div class="display-6">{{ counts.low_stock }}</div>
-        </div>
+        </a>
       </div>
     </div>
   </div>

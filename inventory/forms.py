@@ -4,9 +4,10 @@ from .models import *
 class ProductForm(forms.ModelForm):
     class Meta:
         model = Products
-        fields = ['product_id', 'product_name', 'category', 'brand', 'unit_price', 'supplier']
+        fields = ['product_id', 'product_name', 'category', 'brand', 'unit_price', 'low_stock_limit', 'supplier']
         widgets = {
             'unit_price': forms.NumberInput(attrs={'step': '0.01'}),
+            'low_stock_limit': forms.NumberInput(attrs={'min': 0, 'step': 1}),
         }
         
     def clean_product_id(self):
@@ -38,6 +39,12 @@ class ProductForm(forms.ModelForm):
         if unit_price is None or unit_price < 0:
             raise forms.ValidationError("Unit Price must be a positive number.")
         return unit_price
+
+    def clean_low_stock_limit(self):
+        low_stock_limit = self.cleaned_data.get('low_stock_limit')
+        if low_stock_limit is None or low_stock_limit < 0:
+            raise forms.ValidationError("Low Stock Limit must be zero or greater.")
+        return low_stock_limit
     
     def clean_supplier(self):
         supplier = self.cleaned_data.get('supplier')
@@ -130,9 +137,10 @@ class BranchForm(forms.ModelForm):
 class StockForm(forms.ModelForm):
     class Meta:
         model = StockMovement
-        fields = ['branch', 'product', 'quantity', 'remarks', 'handled_by']
+        fields = ['branch', 'related_branch', 'product', 'quantity', 'remarks', 'handled_by']
     transaction_type = forms.ChoiceField(choices=StockMovement.TRANSACTION_CHOICES, required=True, label='Transaction Type')
     branch = forms.ModelChoiceField(queryset=Branches.objects.all(), required=True, label='Branch')
+    related_branch = forms.ModelChoiceField(queryset=Branches.objects.all(), required=False, label='Related Branch')
     product = forms.ModelChoiceField(queryset=Products.objects.all(), required=True, label='Products')
     quantity = forms.IntegerField(min_value=0, required=True, label='Quantity')
     remarks = forms.CharField(widget=forms.Textarea, required=False, label='Remarks')

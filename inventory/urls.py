@@ -54,11 +54,17 @@ urlpatterns = [
     path('stock-data/', views.stock_data, name='stock_data_all'),
     path('stock-data/<int:branch_id>/', views.stock_data, name='stock_data'),
     path('movement-data/', views.movement_data, name='movement_data'),
+    path('summary-report-data/', views.summary_report_data, name='summary_report_data'),
+    path('daily-sales-data/', views.daily_sales_data, name='daily_sales_data'),
+    path('transfer-report-data/', views.transfer_report_data, name='transfer_report_data'),
     path('add-stock/', views.add_stock, name='add_stock'),
     path('edit-stock/<int:pk>/', views.edit_stock, name='edit_stock'),
     path('delete-stock/<int:pk>/', views.delete_stock, name='delete_stock'),
 
     # New pages
+    path('low-stock-alerts/', views.low_stock_alerts, name='low_stock_alerts'),
+    path('summary-reports/', views.summary_reports, name='summary_reports'),
+    path('daily-sales-report/', views.daily_sales_report, name='daily_sales_report'),
     path('stock-history/', views.stock_history, name='stock_history'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('account/', views.account, name='account'),

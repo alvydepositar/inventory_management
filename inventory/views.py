@@ -7,8 +7,11 @@ from django.forms import modelform_factory
 from django.urls import reverse
 from django.utils import timezone
 from datetime import datetime, time as dt_time
-from django.db.models import Q
+from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum, Value
+from django.db import transaction
+from django.db.models.functions import Coalesce, TruncDate
 from functools import wraps
+from random import randint
 from django.contrib.auth import authenticate, login as django_login, logout as django_logout, get_user_model
 from django.contrib.auth.decorators import login_required
 
@@ -210,7 +213,8 @@ def product_catalogue(request, id=None):
 
 def product_data(request):
     products = Products.objects.all().values(
-        'id', 'product_id', 'product_name', 'category__name', 'category__id', 'brand__name', 'brand__id', 'unit_price', 'supplier__name', 'supplier__id', 'created_at', 'updated_at'
+        'id', 'product_id', 'product_name', 'category__name', 'category__id', 'brand__name', 'brand__id',
+        'unit_price', 'low_stock_limit', 'supplier__name', 'supplier__id', 'created_at', 'updated_at'
     )
     data = list(products)
     return JsonResponse({'data': data})
@@ -433,6 +437,14 @@ def manage_stocks(request, branch_id=None, stock_id=None):
         form_action = reverse('add_stock')
         editing = False
 
+    selected_product_id = None
+    product_id = request.GET.get('product_id')
+    if product_id:
+        try:
+            selected_product_id = int(product_id)
+        except ValueError:
+            selected_product_id = None
+
     context = {
         'branch': branch,
         'branches': branches_list,
@@ -442,30 +454,69 @@ def manage_stocks(request, branch_id=None, stock_id=None):
         'editing': editing,
         'stock': stock,
         'products': products,
+        'selected_product_id': selected_product_id,
+        'selected_txn_type': request.GET.get('type', '') if request.GET.get('type', '') in ['IN', 'OUT', 'BACKLOAD'] else '',
+        'selected_date_from': request.GET.get('date_from', ''),
+        'selected_date_to': request.GET.get('date_to', ''),
+        'selected_txn_group_id': request.GET.get('group_id', ''),
+        'stocks_section': request.GET.get('stocks_section', 'current-stocks'),
+        'selected_daily_date': request.GET.get('daily_date', timezone.localdate().isoformat()),
     }
 
     return render(request, 'html/manage-stocks.html', context)
 
 @login_required
 def stock_history(request):
+    params = request.GET.copy()
+    params['stocks_section'] = 'transaction-log'
+    url = reverse('manage_stocks')
+    query = params.urlencode()
+    if query:
+        url = f'{url}?{query}'
+    return redirect(f'{url}#stocks-transaction-log')
+
+@login_required
+def low_stock_alerts(request):
+    params = request.GET.copy()
+    params['stocks_section'] = 'low-stock'
+    url = reverse('manage_stocks')
+    query = params.urlencode()
+    if query:
+        url = f'{url}?{query}'
+    return redirect(f'{url}#stocks-low-stock')
+
+@login_required
+def summary_reports(request):
     branches_list = Branches.objects.all()
     products = Products.objects.all().select_related('brand')
-    branch = None
-    branch_id = request.GET.get('branch_id')
-    if branch_id:
-        try:
-            branch = Branches.objects.get(pk=int(branch_id))
-        except (Branches.DoesNotExist, ValueError):
-            branch = None
-    context = {
-        'branch': branch,
-        'branches': branches_list,
-        'products': products,
-    }
-    return render(request, 'html/stock-history.html', context)
+    selected_branch_id = request.GET.get('branch_id', '')
+    return render(
+        request,
+        'html/summary-reports.html',
+        {
+            'branches': branches_list,
+            'products': products,
+            'selected_branch_id': selected_branch_id,
+            'selected_product_id': request.GET.get('product_id', ''),
+            'selected_date_from': request.GET.get('date_from', ''),
+            'selected_date_to': request.GET.get('date_to', ''),
+            'reports_section': request.GET.get('reports_section', 'current-summary'),
+        },
+    )
+
+@login_required
+def daily_sales_report(request):
+    params = request.GET.copy()
+    params['reports_section'] = 'daily-stock-out'
+    url = reverse('summary_reports')
+    query = params.urlencode()
+    if query:
+        url = f'{url}?{query}'
+    return redirect(f'{url}#reports-daily-stock-out')
 
 @login_required
 def dashboard(request):
+    low_stock_qs = StockLevel.objects.filter(quantity__lte=F('product__low_stock_limit'))
     counts = {
         'products': Products.objects.count(),
         'categories': Categories.objects.count(),
@@ -474,9 +525,33 @@ def dashboard(request):
         'branches': Branches.objects.count(),
         'stock_items': StockLevel.objects.count(),
         'total_quantity': StockLevel.objects.aggregate(total=models.Sum('quantity'))['total'] or 0,
-        'low_stock': StockLevel.objects.filter(quantity__lt=10).count(),
+        'low_stock': low_stock_qs.count(),
     }
     return render(request, 'html/dashboard.html', {'counts': counts})
+
+def _parse_date_param(s, end=False):
+    if not s:
+        return None
+    try:
+        if len(s) == 10:
+            d = datetime.fromisoformat(s)
+            dt = datetime.combine(d.date(), dt_time.max if end else dt_time.min)
+        else:
+            dt = datetime.fromisoformat(s)
+        if timezone.is_naive(dt):
+            dt = timezone.make_aware(dt, timezone.get_current_timezone())
+        return dt
+    except Exception:
+        return None
+
+def _is_incoming_transaction(transaction_type):
+    return transaction_type in ['IN', 'BLI']
+
+def _is_outgoing_transaction(transaction_type):
+    return transaction_type in ['OUT', 'BLO']
+
+def _display_transaction_matches_backload_filter(transaction_type):
+    return transaction_type in ['BLO', 'BLI']
 
 @login_required
 def account(request):
@@ -526,53 +601,276 @@ def movement_data(request):
     branch_id = request.GET.get('branch_id')
     product_id = request.GET.get('product_id')
     txn_type = request.GET.get('type')
+    transaction_group_id = request.GET.get('group_id')
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
 
-    qs = StockMovement.objects.select_related('branch', 'product', 'product__brand', 'handled_by').all()
+    qs = StockMovement.objects.select_related('branch', 'related_branch', 'product', 'product__brand', 'handled_by').all()
+    if transaction_group_id:
+        qs = qs.filter(transaction_group_id=transaction_group_id)
     if branch_id:
         qs = qs.filter(branch__id=branch_id)
     if product_id:
         qs = qs.filter(product__id=product_id)
-    if txn_type in ['IN', 'OUT']:
+    if txn_type in ['IN', 'OUT', 'BLO', 'BLI']:
         qs = qs.filter(transaction_type=txn_type)
-    # Robust ISO date parsing (YYYY-MM-DD or full ISO timestamps)
-    def _parse_date(s, end=False):
-        if not s:
-            return None
-        try:
-            # If only a date is provided, attach start/end of day
-            if len(s) == 10:
-                d = datetime.fromisoformat(s)
-                dt = datetime.combine(d.date(), dt_time.max if end else dt_time.min)
-            else:
-                dt = datetime.fromisoformat(s)
-            # Make aware if settings use TZ
-            if timezone.is_naive(dt):
-                dt = timezone.make_aware(dt, timezone.get_current_timezone())
-            return dt
-        except Exception:
-            return None
-
-    dt_from = _parse_date(date_from, end=False)
-    dt_to = _parse_date(date_to, end=True)
+    elif txn_type == 'BACKLOAD':
+        qs = qs.filter(transaction_type__in=['BLO', 'BLI'])
+    dt_from = _parse_date_param(date_from, end=False)
+    dt_to = _parse_date_param(date_to, end=True)
     if dt_from:
         qs = qs.filter(date__gte=dt_from)
     if dt_to:
         qs = qs.filter(date__lte=dt_to)
 
     data = list(qs.values(
-        'id', 'transaction_id', 'transaction_type', 'quantity', 'remarks', 'balance_after',
+        'id', 'transaction_id', 'transaction_type', 'quantity', 'remarks', 'balance_before', 'balance_after',
         'date',
         'branch__id', 'branch__name',
+        'related_branch__id', 'related_branch__name',
+        'transaction_group_id',
         'product__id', 'product__product_name', 'product__brand__name',
         'handled_by__id', 'handled_by__username'
     ))
+    for row in data:
+        if row['balance_before'] is None and row['balance_after'] is not None:
+            if _is_incoming_transaction(row['transaction_type']):
+                row['balance_before'] = max(row['balance_after'] - row['quantity'], 0)
+            else:
+                row['balance_before'] = row['balance_after'] + row['quantity']
+        if row['balance_after'] is None and row['balance_before'] is not None:
+            if _is_incoming_transaction(row['transaction_type']):
+                row['balance_after'] = row['balance_before'] + row['quantity']
+            else:
+                row['balance_after'] = max(row['balance_before'] - row['quantity'], 0)
+    return JsonResponse({'data': data})
+
+@login_required
+def summary_report_data(request):
+    group_by = request.GET.get('group_by')
+    branch_id = request.GET.get('branch_id')
+    qs = StockLevel.objects.select_related('product', 'product__brand', 'product__category')
+    if branch_id:
+        try:
+            qs = qs.filter(branch__id=int(branch_id))
+        except ValueError:
+            return JsonResponse({'success': False, 'message': 'Invalid branch filter.'}, status=400)
+
+    value_expr = ExpressionWrapper(
+        F('quantity') * F('product__unit_price'),
+        output_field=DecimalField(max_digits=14, decimal_places=2),
+    )
+    zero_decimal = Value(0, output_field=DecimalField(max_digits=14, decimal_places=2))
+
+    if group_by == 'brand':
+        data = list(
+            qs.values('product__brand__id', 'product__brand__name')
+            .annotate(
+                item_count=Count('product', distinct=True),
+                total_quantity=Coalesce(Sum('quantity'), 0),
+                total_value=Coalesce(Sum(value_expr), zero_decimal),
+            )
+            .order_by('product__brand__name')
+        )
+        for row in data:
+            row['group_id'] = row.pop('product__brand__id')
+            row['group_name'] = row.pop('product__brand__name') or 'Unassigned'
+        return JsonResponse({'data': data})
+
+    if group_by == 'category':
+        data = list(
+            qs.values('product__category__id', 'product__category__name')
+            .annotate(
+                item_count=Count('product', distinct=True),
+                total_quantity=Coalesce(Sum('quantity'), 0),
+                total_value=Coalesce(Sum(value_expr), zero_decimal),
+            )
+            .order_by('product__category__name')
+        )
+        for row in data:
+            row['group_id'] = row.pop('product__category__id')
+            row['group_name'] = row.pop('product__category__name') or 'Unassigned'
+        return JsonResponse({'data': data})
+
+    if group_by == 'item':
+        data = list(
+            qs.values(
+                'product__id',
+                'product__product_id',
+                'product__product_name',
+                'product__brand__name',
+                'product__category__name',
+                'product__unit_price',
+                'product__low_stock_limit',
+            )
+            .annotate(
+                total_quantity=Coalesce(Sum('quantity'), 0),
+                branch_count=Count('branch', distinct=True),
+                total_value=Coalesce(Sum(value_expr), zero_decimal),
+            )
+            .order_by('product__product_name')
+        )
+        for row in data:
+            low_stock_limit = row['product__low_stock_limit'] or 0
+            medium_limit = low_stock_limit * 2
+            if row['total_quantity'] <= low_stock_limit:
+                stock_status = 'Low'
+            elif row['total_quantity'] <= medium_limit:
+                stock_status = 'Medium'
+            else:
+                stock_status = 'High'
+            row['product_id'] = row.pop('product__id')
+            row['product_code'] = row.pop('product__product_id')
+            row['product_name'] = row.pop('product__product_name')
+            row['brand_name'] = row.pop('product__brand__name') or 'Unassigned'
+            row['category_name'] = row.pop('product__category__name') or 'Unassigned'
+            row['unit_price'] = row.pop('product__unit_price')
+            row['low_stock_limit'] = low_stock_limit
+            row['stock_status'] = stock_status
+        return JsonResponse({'data': data})
+
+    return JsonResponse({'success': False, 'message': 'Invalid report group.'}, status=400)
+
+@login_required
+def daily_sales_data(request):
+    branch_id = request.GET.get('branch_id')
+    product_id = request.GET.get('product_id')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+
+    qs = StockMovement.objects.select_related('branch', 'product', 'product__brand').filter(transaction_type='OUT')
+    if branch_id:
+        try:
+            qs = qs.filter(branch__id=int(branch_id))
+        except ValueError:
+            return JsonResponse({'success': False, 'message': 'Invalid branch filter.'}, status=400)
+    if product_id:
+        try:
+            qs = qs.filter(product__id=int(product_id))
+        except ValueError:
+            return JsonResponse({'success': False, 'message': 'Invalid product filter.'}, status=400)
+
+    dt_from = _parse_date_param(date_from, end=False)
+    dt_to = _parse_date_param(date_to, end=True)
+    if dt_from:
+        qs = qs.filter(date__gte=dt_from)
+    if dt_to:
+        qs = qs.filter(date__lte=dt_to)
+
+    value_expr = ExpressionWrapper(
+        F('quantity') * F('product__unit_price'),
+        output_field=DecimalField(max_digits=14, decimal_places=2),
+    )
+    zero_decimal = Value(0, output_field=DecimalField(max_digits=14, decimal_places=2))
+
+    data = list(
+        qs.annotate(sale_date=TruncDate('date'))
+        .values(
+            'sale_date',
+            'branch__id',
+            'branch__name',
+            'product__id',
+            'product__product_name',
+            'product__brand__name',
+        )
+        .annotate(
+            total_quantity=Coalesce(Sum('quantity'), 0),
+            estimated_value=Coalesce(Sum(value_expr), zero_decimal),
+        )
+        .order_by('-sale_date', 'branch__name', 'product__product_name')
+    )
+
+    stock_map = {
+        (row['branch_id'], row['product_id']): row['quantity']
+        for row in StockLevel.objects.values('branch_id', 'product_id', 'quantity')
+    }
+    for row in data:
+        branch_key = row['branch__id']
+        product_key = row['product__id']
+        row['current_balance'] = stock_map.get((branch_key, product_key), 0)
+        row['branch_id'] = branch_key
+        row['branch_name'] = row.pop('branch__name')
+        row['product_id'] = product_key
+        row['product_name'] = row.pop('product__product_name')
+        row['brand_name'] = row.pop('product__brand__name') or 'Unassigned'
+        row['sale_date'] = row['sale_date'].isoformat() if row['sale_date'] else ''
+    return JsonResponse({'data': data})
+
+@login_required
+def transfer_report_data(request):
+    branch_id = request.GET.get('branch_id')
+    product_id = request.GET.get('product_id')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+
+    qs = StockMovement.objects.select_related(
+        'branch',
+        'related_branch',
+        'product',
+        'product__brand',
+        'handled_by',
+    ).filter(transaction_type='BLO')
+
+    if branch_id:
+        try:
+            branch_value = int(branch_id)
+            qs = qs.filter(Q(branch__id=branch_value) | Q(related_branch__id=branch_value))
+        except ValueError:
+            return JsonResponse({'success': False, 'message': 'Invalid branch filter.'}, status=400)
+    if product_id:
+        try:
+            qs = qs.filter(product__id=int(product_id))
+        except ValueError:
+            return JsonResponse({'success': False, 'message': 'Invalid product filter.'}, status=400)
+
+    dt_from = _parse_date_param(date_from, end=False)
+    dt_to = _parse_date_param(date_to, end=True)
+    if dt_from:
+        qs = qs.filter(date__gte=dt_from)
+    if dt_to:
+        qs = qs.filter(date__lte=dt_to)
+
+    data = list(
+        qs.values(
+            'transaction_group_id',
+            'date',
+            'branch__id',
+            'branch__name',
+            'related_branch__id',
+            'related_branch__name',
+            'product__id',
+            'product__product_name',
+            'product__brand__name',
+            'quantity',
+            'handled_by__username',
+            'remarks',
+        ).order_by('-date', 'branch__name', 'product__product_name')
+    )
+
+    for row in data:
+        transfer_date = row.pop('date')
+        row['transfer_date'] = transfer_date.isoformat() if transfer_date else ''
+        row['source_branch_id'] = row.pop('branch__id')
+        row['source_branch_name'] = row.pop('branch__name') or ''
+        row['destination_branch_id'] = row.pop('related_branch__id')
+        row['destination_branch_name'] = row.pop('related_branch__name') or ''
+        row['product_id'] = row.pop('product__id')
+        row['product_name'] = row.pop('product__product_name') or ''
+        row['brand_name'] = row.pop('product__brand__name') or 'Unassigned'
+        row['handled_by_name'] = row.pop('handled_by__username') or ''
+
     return JsonResponse({'data': data})
 
 @login_required
 def stock_data(request, branch_id=None):
     qs = StockLevel.objects.all()
+    if branch_id is None:
+        q_branch_id = request.GET.get('branch_id')
+        if q_branch_id:
+            try:
+                branch_id = int(q_branch_id)
+            except ValueError:
+                branch_id = None
     if branch_id:
         qs = qs.filter(branch__id=branch_id)
     # Optional filter by product id
@@ -582,26 +880,59 @@ def stock_data(request, branch_id=None):
             qs = qs.filter(product__id=int(product_id))
         except ValueError:
             pass
-    stocks = qs.values('id', 'product__product_name', 'product__brand__name', 'quantity', 'branch__id', 'product__id', 'product__brand__name', 'product__brand__id', 'branch__name')
+    low_only = request.GET.get('low_only') in ['1', 'true', 'True']
+    if low_only:
+        qs = qs.filter(quantity__lte=F('product__low_stock_limit'))
+    stocks = qs.values(
+        'id', 'product__product_name', 'product__brand__name', 'product__low_stock_limit',
+        'quantity', 'branch__id', 'product__id', 'product__brand__name',
+        'product__brand__id', 'branch__name'
+    )
     stock_levels = []
     for stock in stocks:
-        if stock['quantity'] < 10:
+        low_stock_limit = stock['product__low_stock_limit'] or 0
+        medium_limit = low_stock_limit * 2
+
+        if stock['quantity'] <= low_stock_limit:
             stock['stock_level'] = 'Low'
-        elif stock['quantity'] < 50:
+        elif stock['quantity'] <= medium_limit:
             stock['stock_level'] = 'Medium'
         else:
             stock['stock_level'] = 'High'
+        stock['short_by'] = max(low_stock_limit - stock['quantity'], 0)
         stock_levels.append(stock)
     data = list(stock_levels)
     return JsonResponse({'data': data})
 
+def _generate_code(prefix: str, field_name: str = 'transaction_id') -> str:
+    for _ in range(20):
+        ts = timezone.now().strftime('%Y%m%d%H%M%S')
+        suffix = f"{randint(0, 999):03d}"
+        value = f"{prefix}{ts}{suffix}"
+        lookup = {field_name: value}
+        if not StockMovement.objects.filter(**lookup).exists():
+            return value
+    raise ValueError('Unable to generate a unique transaction reference.')
+
 def _generate_transaction_id() -> str:
-    ts = timezone.now().strftime('%Y%m%d%H%M%S')
-    return f"SM-{ts}"
+    return _generate_code('SM-')
+
+def _generate_transaction_group_id() -> str:
+    return _generate_code('BL-', field_name='transaction_group_id')
+
+def _get_stock_quantity(branch, product):
+    if not branch or not product:
+        return 0
+    return (
+        StockLevel.objects.filter(branch=branch, product=product)
+        .values_list('quantity', flat=True)
+        .first()
+        or 0
+    )
 
 def _apply_movement_to_stocklevel(branch, product, transaction_type, quantity):
     stock_level, _ = StockLevel.objects.get_or_create(branch=branch, product=product, defaults={"quantity": 0})
-    if transaction_type == 'IN':
+    if _is_incoming_transaction(transaction_type):
         stock_level.quantity = stock_level.quantity + quantity
     else:
         new_qty = stock_level.quantity - quantity
@@ -611,12 +942,40 @@ def _apply_movement_to_stocklevel(branch, product, transaction_type, quantity):
     stock_level.save()
     return stock_level
 
+def _recalculate_movement_balances(branch, product):
+    if not branch or not product:
+        return
+
+    movements = list(
+        StockMovement.objects.filter(branch=branch, product=product).order_by('date', 'id')
+    )
+    running_balance = 0
+    for movement in movements:
+        movement.balance_before = running_balance
+        if _is_incoming_transaction(movement.transaction_type):
+            running_balance += movement.quantity
+        else:
+            running_balance = max(running_balance - movement.quantity, 0)
+        movement.balance_after = running_balance
+
+    if movements:
+        StockMovement.objects.bulk_update(movements, ['balance_before', 'balance_after'])
+
+def _build_backload_remarks(base_remarks, source_branch, destination_branch, direction):
+    route_note = (
+        f"Transfer to {destination_branch.name}"
+        if direction == 'OUT'
+        else f"Transfer from {source_branch.name}"
+    )
+    return f"{route_note}. {base_remarks}".strip() if base_remarks else route_note
+
 def add_stock(request):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Invalid request method.'}, status=405)
 
     try:
         branch_id = int(request.POST.get('branch')) if request.POST.get('branch') else None
+        related_branch_id = int(request.POST.get('related_branch')) if request.POST.get('related_branch') else None
         product_id = int(request.POST.get('product')) if request.POST.get('product') else None
         transaction_type = request.POST.get('transaction_type')
         quantity = int(request.POST.get('quantity') or 0)
@@ -624,11 +983,18 @@ def add_stock(request):
     except (TypeError, ValueError):
         return JsonResponse({'success': False, 'message': 'Invalid input values.'}, status=400)
 
-    if not branch_id or not product_id or transaction_type not in ['IN', 'OUT'] or quantity <= 0:
+    if not branch_id or not product_id or transaction_type not in ['IN', 'OUT', 'BACKLOAD'] or quantity <= 0:
         return JsonResponse({'success': False, 'message': 'Missing or invalid fields.'}, status=400)
 
     branch = get_object_or_404(Branches, pk=branch_id)
     product = get_object_or_404(Products, pk=product_id)
+    related_branch = None
+    if transaction_type == 'BACKLOAD':
+        if not related_branch_id:
+            return JsonResponse({'success': False, 'message': 'Destination branch is required for a transfer.'}, status=400)
+        if related_branch_id == branch_id:
+            return JsonResponse({'success': False, 'message': 'Destination branch must be different from the source branch.'}, status=400)
+        related_branch = get_object_or_404(Branches, pk=related_branch_id)
 
     # Determine handler from session if available
     handled_by = None
@@ -640,36 +1006,74 @@ def add_stock(request):
             handled_by = None
 
     try:
-        level = _apply_movement_to_stocklevel(branch, product, transaction_type, quantity)
+        with transaction.atomic():
+            if transaction_type == 'BACKLOAD':
+                group_id = _generate_transaction_group_id()
+                source_balance_before = _get_stock_quantity(branch, product)
+                source_level = _apply_movement_to_stocklevel(branch, product, 'OUT', quantity)
+                destination_balance_before = _get_stock_quantity(related_branch, product)
+                destination_level = _apply_movement_to_stocklevel(related_branch, product, 'IN', quantity)
+
+                StockMovement.objects.create(
+                    transaction_id=_generate_transaction_id(),
+                    transaction_type='BLO',
+                    transaction_group_id=group_id,
+                    branch=branch,
+                    related_branch=related_branch,
+                    product=product,
+                    quantity=quantity,
+                    remarks=_build_backload_remarks(remarks, branch, related_branch, 'OUT'),
+                    handled_by=handled_by,
+                    balance_before=source_balance_before,
+                    balance_after=source_level.quantity
+                )
+                StockMovement.objects.create(
+                    transaction_id=_generate_transaction_id(),
+                    transaction_type='BLI',
+                    transaction_group_id=group_id,
+                    branch=related_branch,
+                    related_branch=branch,
+                    product=product,
+                    quantity=quantity,
+                    remarks=_build_backload_remarks(remarks, branch, related_branch, 'IN'),
+                    handled_by=handled_by,
+                    balance_before=destination_balance_before,
+                    balance_after=destination_level.quantity
+                )
+                _recalculate_movement_balances(branch, product)
+                _recalculate_movement_balances(related_branch, product)
+            else:
+                balance_before = _get_stock_quantity(branch, product)
+                level = _apply_movement_to_stocklevel(branch, product, transaction_type, quantity)
+                StockMovement.objects.create(
+                    transaction_id=_generate_transaction_id(),
+                    transaction_type=transaction_type,
+                    branch=branch,
+                    product=product,
+                    quantity=quantity,
+                    remarks=remarks,
+                    handled_by=handled_by,
+                    balance_before=balance_before,
+                    balance_after=level.quantity
+                )
+                _recalculate_movement_balances(branch, product)
     except ValueError as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=400)
 
-    StockMovement.objects.create(
-        transaction_id=_generate_transaction_id(),
-        transaction_type=transaction_type,
-        branch=branch,
-        product=product,
-        quantity=quantity,
-        remarks=remarks,
-        handled_by=handled_by,
-        balance_after=level.quantity
-    )
-
-    return JsonResponse({'success': True, 'message': 'Stock movement recorded successfully.'})
+    if transaction_type == 'BACKLOAD':
+        return JsonResponse({'success': True, 'message': 'Transfer recorded successfully.'})
+    return JsonResponse({'success': True, 'message': 'Stock action recorded successfully.'})
 
 def edit_stock(request, pk):
     movement = get_object_or_404(StockMovement, pk=pk)
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Invalid request method.'}, status=405)
+    if movement.transaction_group_id or movement.transaction_type in ['BLO', 'BLI']:
+        return JsonResponse(
+            {'success': False, 'message': 'Editing transfer transactions is not supported. Delete and recreate the transfer instead.'},
+            status=400
+        )
 
-    # Revert the old movement first
-    revert_type = 'OUT' if movement.transaction_type == 'IN' else 'IN'
-    try:
-        _apply_movement_to_stocklevel(movement.branch, movement.product, revert_type, movement.quantity)
-    except ValueError as e:
-        return JsonResponse({'success': False, 'message': f'Failed to revert previous movement: {e}'}, status=400)
-
-    # Apply new values
     try:
         branch_id = int(request.POST.get('branch')) if request.POST.get('branch') else None
         product_id = int(request.POST.get('product')) if request.POST.get('product') else None
@@ -684,31 +1088,72 @@ def edit_stock(request, pk):
 
     branch = get_object_or_404(Branches, pk=branch_id)
     product = get_object_or_404(Products, pk=product_id)
+    old_branch = movement.branch
+    old_product = movement.product
+    revert_type = 'OUT' if _is_incoming_transaction(movement.transaction_type) else 'IN'
 
     try:
-        level = _apply_movement_to_stocklevel(branch, product, transaction_type, quantity)
-    except ValueError as e:
-        # If new apply fails, re-apply original to keep consistency
-        _apply_movement_to_stocklevel(movement.branch, movement.product, movement.transaction_type, movement.quantity)
-        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+        with transaction.atomic():
+            _apply_movement_to_stocklevel(old_branch, old_product, revert_type, movement.quantity)
+            balance_before = _get_stock_quantity(branch, product)
+            level = _apply_movement_to_stocklevel(branch, product, transaction_type, quantity)
 
-    movement.transaction_type = transaction_type
-    movement.branch = branch
-    movement.product = product
-    movement.quantity = quantity
-    movement.remarks = remarks
-    movement.balance_after = level.quantity
-    movement.save()
+            movement.transaction_type = transaction_type
+            movement.branch = branch
+            movement.product = product
+            movement.quantity = quantity
+            movement.remarks = remarks
+            movement.balance_before = balance_before
+            movement.balance_after = level.quantity
+            movement.save()
+
+            affected_pairs = {
+                (old_branch.id, old_product.id) if old_branch and old_product else None,
+                (branch.id, product.id),
+            }
+            for pair in affected_pairs:
+                if not pair:
+                    continue
+                recalc_branch = old_branch if old_branch and old_branch.id == pair[0] else branch
+                recalc_product = old_product if old_product and old_product.id == pair[1] else product
+                _recalculate_movement_balances(recalc_branch, recalc_product)
+    except ValueError as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
 
     return JsonResponse({'success': True, 'message': 'Stock movement updated successfully.'})
 
 def delete_stock(request, pk):
     movement = get_object_or_404(StockMovement, pk=pk)
-    # Revert the movement effect
-    revert_type = 'OUT' if movement.transaction_type == 'IN' else 'IN'
+    branch = movement.branch
+    product = movement.product
+    revert_type = 'OUT' if _is_incoming_transaction(movement.transaction_type) else 'IN'
     try:
-        _apply_movement_to_stocklevel(movement.branch, movement.product, revert_type, movement.quantity)
+        with transaction.atomic():
+            if movement.transaction_group_id:
+                grouped_movements = list(
+                    StockMovement.objects.filter(transaction_group_id=movement.transaction_group_id).select_related('branch', 'product')
+                )
+                touched_pairs = set()
+                for grouped_movement in grouped_movements:
+                    grouped_revert_type = 'OUT' if _is_incoming_transaction(grouped_movement.transaction_type) else 'IN'
+                    _apply_movement_to_stocklevel(
+                        grouped_movement.branch,
+                        grouped_movement.product,
+                        grouped_revert_type,
+                        grouped_movement.quantity
+                    )
+                    if grouped_movement.branch and grouped_movement.product:
+                        touched_pairs.add((grouped_movement.branch.id, grouped_movement.product.id))
+                StockMovement.objects.filter(transaction_group_id=movement.transaction_group_id).delete()
+                for branch_id, product_id in touched_pairs:
+                    recalc_branch = Branches.objects.get(pk=branch_id)
+                    recalc_product = Products.objects.get(pk=product_id)
+                    _recalculate_movement_balances(recalc_branch, recalc_product)
+                return JsonResponse({'success': True, 'message': 'Transfer deleted successfully.'})
+
+            _apply_movement_to_stocklevel(branch, product, revert_type, movement.quantity)
+            movement.delete()
+            _recalculate_movement_balances(branch, product)
     except ValueError as e:
         return JsonResponse({'success': False, 'message': f'Failed to revert movement: {e}'}, status=400)
-    movement.delete()
-    return JsonResponse({'success': True, 'message': 'Stock movement deleted successfully.'})
+    return JsonResponse({'success': True, 'message': 'Stock action deleted successfully.'})

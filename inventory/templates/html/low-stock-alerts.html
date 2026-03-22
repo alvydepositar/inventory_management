@@ -1,0 +1,155 @@
+{% extends 'html/base.html' %}
+
+{% block title %}Low Stock Alerts{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="container-xxl flex-grow-1 container-p-y">
+    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+      <div>
+        <h4 class="fw-bold m-0">Low Stock Alerts</h4>
+        <div class="text-muted">Items that are already at or below their product low stock limit.</div>
+      </div>
+        <div class="d-flex flex-wrap gap-2">
+          <a class="btn btn-outline-primary" href="{% url 'manage_stocks' %}">
+          <i class="ti ti-clipboard me-1"></i> Open Stocks
+        </a>
+        <a class="btn btn-outline-primary" href="{% url 'stock_history' %}">
+          <i class="ti ti-history me-1"></i> Open Transaction Log
+        </a>
+      </div>
+    </div>
+
+    <div class="card mb-3 p-3" aria-labelledby="lowStockFiltersLabel">
+      <div class="mb-2 text-muted" id="lowStockFiltersLabel">Filter low stock items by branch and product</div>
+      <div class="row g-2 align-items-end">
+        <div class="col-12 col-md-4">
+          <label class="form-label" for="lowBranch">Branch</label>
+          <select id="lowBranch" class="form-select" aria-label="Low stock branch filter">
+            <option value="">All Branches</option>
+            {% for b in branches %}
+              <option value="{{ b.id }}" {% if branch and branch.id == b.id %}selected{% endif %}>{{ b.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-5">
+          <label class="form-label" for="lowProduct">Product</label>
+          <select id="lowProduct" class="form-select" aria-label="Low stock product filter">
+            <option value="">All Products</option>
+            {% for p in products %}
+              <option value="{{ p.id }}" {% if selected_product_id == p.id %}selected{% endif %}>{{ p.product_name }} ({{ p.brand.name }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-3">
+          <button id="lowClearFilters" class="btn btn-outline-primary w-100" type="button" aria-label="Clear low stock filters">Clear Filters</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-datatable table-responsive pt-0">
+        <table class="low-stock-datatables-basic table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Branch</th>
+              <th>Product</th>
+              <th>Brand</th>
+              <th>Current Qty</th>
+              <th>Low Stock Limit</th>
+              <th>Short By</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+        </table>
+      </div>
+    </div>
+
+    <div class="modal fade" id="stockModal" tabindex="-1" aria-labelledby="stockModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="stockModalLabel">Record Stock Action</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <form id="stockForm" class="row g-3 fv-plugins-bootstrap5 fv-plugins-framework" method="POST" action="{% url 'add_stock' %}" novalidate>
+              {% csrf_token %}
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="stockType">Choose Action</label>
+                <select id="stockType" name="transaction_type" class="form-select" required aria-required="true">
+                  <option value="IN" selected>Receive Stock</option>
+                  <option value="OUT">Release Stock</option>
+                  <option value="BACKLOAD">Transfer to Branch</option>
+                </select>
+                <div class="fv-plugins-message-container invalid-feedback"></div>
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="stockBranch">Branch</label>
+                <select id="stockBranch" name="branch" class="form-select" required aria-required="true">
+                  <option value="" disabled selected>Select Branch</option>
+                  {% for branch_item in branches %}
+                    <option value="{{ branch_item.id }}">{{ branch_item.name }}</option>
+                  {% endfor %}
+                </select>
+                <div class="fv-plugins-message-container invalid-feedback"></div>
+              </div>
+              <div class="col-12 col-md-6 d-none" id="stockRelatedBranchWrapper">
+                <label class="form-label" for="stockRelatedBranch">To Branch</label>
+                <select id="stockRelatedBranch" name="related_branch" class="form-select">
+                  <option value="" selected>Select To Branch</option>
+                  {% for branch_item in branches %}
+                    <option value="{{ branch_item.id }}">{{ branch_item.name }}</option>
+                  {% endfor %}
+                </select>
+                <div class="fv-plugins-message-container invalid-feedback"></div>
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="stockProduct">Product</label>
+                <select id="stockProduct" name="product" class="form-select" required aria-required="true">
+                  <option value="" disabled selected>Select Product</option>
+                  {% for product in products %}
+                    <option value="{{ product.id }}">{{ product.product_name }} ({{ product.brand.name }})</option>
+                  {% endfor %}
+                </select>
+                <div class="fv-plugins-message-container invalid-feedback"></div>
+              </div>
+              <div class="col-12">
+                <div id="stockActionGuide" class="alert alert-info mb-0 py-2">
+                  Use this form to receive stock, release stock, or transfer stock to another branch.
+                </div>
+              </div>
+              <div class="col-12 col-md-6 d-none" id="stockCurrentBalanceWrapper" data-current-balance="">
+                <div class="border rounded p-3 h-100">
+                  <div class="text-muted small text-uppercase" id="stockCurrentBalanceLabel">Current Balance</div>
+                  <div class="fs-4 fw-semibold" id="stockCurrentBalanceValue">-</div>
+                  <div class="small text-muted" id="stockCurrentBalanceHint">Select a branch and product to view the current balance.</div>
+                </div>
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="stockProductQuantity">Quantity</label>
+                <input type="number" inputmode="numeric" min="1" step="1" id="stockProductQuantity" name="quantity" class="form-control" placeholder="Quantity" required aria-required="true">
+                <div class="fv-plugins-message-container invalid-feedback"></div>
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="stockRemarks">Notes (optional)</label>
+                <textarea id="stockRemarks" name="remarks" class="form-control" placeholder="Optional note" rows="3"></textarea>
+                <div class="fv-plugins-message-container invalid-feedback"></div>
+              </div>
+
+              <div class="col-12 text-center">
+                <button type="submit" id="stockSubmitButton" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Receive Stock</button>
+                <button type="button" class="btn btn-label-secondary waves-effect" data-bs-dismiss="modal" aria-label="Close">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
