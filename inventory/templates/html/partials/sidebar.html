@@ -18,14 +18,14 @@
     <div class="menu-inner-shadow"></div>
   
     <ul class="menu-inner py-1">
-      <li class="menu-item">
-        <a href="javascript:void(0);" class="menu-link">
+      <li class="menu-item {% if request.path == '/dashboard/' %}active{% endif %}">
+        <a href="{% url 'dashboard' %}" class="menu-link">
           <i class="menu-icon tf-icons ti ti-smart-home"></i>
           <div data-i18n="Dashboards">Dashboard</div>
         </a>
       </li>
-      <li class="menu-item">
-        <a href="javascript:void(0);" class="menu-link menu">
+      <li class="menu-item {% if request.path == '/account/' %}active{% endif %}">
+        <a href="{% url 'account' %}" class="menu-link menu">
           <i class="menu-icon tf-icons ti ti-layout-sidebar"></i>
           <div data-i18n="Account">Account</div>
         </a>
@@ -40,18 +40,36 @@
         </a>
       </li>
       <li class="menu-header small text-uppercase">
-        <span class="menu-header-text">Stock Management</span>
+        <span class="menu-header-text">Stocks</span>
       </li>
-      <li class="menu-item {% if 'manage-stocks' in request.path %}active{% endif %}">
-        <a href="{% url 'manage_stocks' %}" class="menu-link">
+      <li class="menu-item {% if 'manage-stocks' in request.path or 'low-stock-alerts' in request.path or 'stock-history' in request.path %}active open{% endif %}">
+        <a href="javascript:void(0);" class="menu-link menu-toggle">
           <i class="menu-icon tf-icons ti ti-clipboard"></i>
-          <div data-i18n="Stock">Stock Management</div>
+          <div data-i18n="Stock">Stocks</div>
         </a>
+        <ul class="menu-sub">
+          <li class="menu-item {% if request.path == '/manage-stocks/' and not request.GET.branch_id %}active{% endif %}">
+            <a href="{% url 'manage_stocks' %}" class="menu-link">
+              <div data-i18n="Branches">Branches</div>
+            </a>
+          </li>
+          {% for stock_branch in sidebar_branches %}
+            {% url 'manage_stocks' stock_branch.id as stock_branch_url %}
+            <li class="menu-item {% if request.path == stock_branch_url %}active{% endif %}">
+              <a href="{{ stock_branch_url }}" class="menu-link">
+                <div data-i18n="Branch{{ stock_branch.id }}">{{ stock_branch.name }}</div>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
       </li>
-      <li class="menu-item">
-        <a href="#" class="menu-link">
-          <i class="menu-icon tf-icons ti ti-history"></i>
-          <div data-i18n="Stock">Stock History</div>
+      <li class="menu-header small text-uppercase">
+        <span class="menu-header-text">Reports</span>
+      </li>
+      <li class="menu-item {% if 'summary-reports' in request.path or 'daily-sales-report' in request.path %}active{% endif %}">
+        <a href="{% url 'summary_reports' %}" class="menu-link">
+          <i class="menu-icon tf-icons ti ti-report-search"></i>
+          <div data-i18n="Reports">Reports</div>
         </a>
       </li>
 
@@ -347,8 +365,8 @@
         <li class="nav-item navbar-dropdown dropdown-user dropdown">
           <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown">
               <div class="flex-grow-1">
-                <span class="fw-semibold d-block">John Doe</span>
-                <small class="text-muted">Admin</small>
+                <span class="fw-semibold d-block">{{ request.user.get_full_name }}</span>
+                <small class="text-muted">{{ request.user.user_role }}</small>
               </div>
           </a>
           <ul class="dropdown-menu dropdown-menu-end">
@@ -362,7 +380,7 @@
               <div class="dropdown-divider"></div>
             </li>
             <li>
-              <a class="dropdown-item" href="{% url 'auth_login' %}" target="_blank">
+              <a class="dropdown-item" href="{% url 'logout' %}" target="_blank">
                 <i class="ti ti-logout me-2 ti-sm"></i>
                 <span class="align-middle">Log Out</span>
               </a>

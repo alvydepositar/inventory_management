@@ -3,6 +3,14 @@
  */
 
 'use strict';
+// Redirect to login if any jQuery AJAX call hits 401 (unauthenticated)
+if (window.jQuery) {
+  $(document).ajaxError(function (event, jqxhr) {
+    if (jqxhr && jqxhr.status === 401) {
+      window.location.href = '/';
+    }
+  });
+}
 let usersModalInstance, productModalInstance, categoryModalInstance, brandModalInstance, supplierModalInstance, branchModalInstance, stockModalInstance;
 
 // Users DataTable and Modal
@@ -10,6 +18,8 @@ if (document.getElementById('userModal')) {
   document.getElementById('userModal').addEventListener('hidden.bs.modal', function () {
     // Reset the form when the modal is closed
     document.getElementById('userForm').reset();
+    // Reset action to default Add endpoint to avoid editing previous record
+    document.getElementById('userForm').setAttribute('action', '/add-user/');
     document.querySelectorAll('#userForm input').forEach(input => {
       input.classList.remove('is-invalid');
       const errorContainer = input.nextElementSibling;
@@ -155,6 +165,13 @@ if (document.getElementById('userModal')) {
       });
     }
 
+    // Ensure Add New Record always targets the add endpoint
+    $(document).on('click', '.create-new[data-bs-target="#userModal"]', function () {
+      resetModalInputs('userModal');
+      $('#userModalLabel').text('Add New User');
+      $('#userForm').attr('action', '/add-user/');
+    });
+
     // Handle view button click
     $('.users-datatables-basic tbody').on('click', '.item-view', function () {
       resetModalInputs('userModal');
@@ -168,7 +185,7 @@ if (document.getElementById('userModal')) {
       $('#userForm input[name="email"]').val(data.email).prop('readonly', true);
       $('#userForm input[name="first_name"]').val(data.first_name).prop('readonly', true);
       $('#userForm input[name="last_name"]').val(data.last_name).prop('readonly', true);
-      $('#userForm input[name="is_staff"]').prop('checked', data.is_staff).prop('disabled', true);
+      $('#userForm select[name="user_role"]').val(String(data.user_role)).prop('disabled', true);
       // Remove submit button
       $('#userForm button[type="submit"]').remove();
       usersModalInstance.show();
@@ -187,9 +204,8 @@ if (document.getElementById('userModal')) {
       $('#userForm input[name="email"]').val(data.email);
       $('#userForm input[name="first_name"]').val(data.first_name);
       $('#userForm input[name="last_name"]').val(data.last_name);
-      $('#userForm input[name="is_staff"]').prop('checked', data.is_staff).prop('disabled', false);
+      $('#userForm select[name="user_role"]').val(String(data.user_role)).prop('disabled', false);
       $('#userForm input[name="password"]').val(''); // Clear password field
-      $('#userForm input[name="confirm_password"]').val(''); // Clear confirm password field
       // Bring the submit button back and cancel button side by side
       if (!$('#userForm button[type="submit"]').length && !$('#userForm button[type="button"]').length) {
         $('#userForm .col-12.text-center').html(`
@@ -273,6 +289,7 @@ if (document.getElementById('productModal')) {
         { data: 'category__name' },
         { data: 'brand__name' },
         { data: 'unit_price' },
+        { data: 'low_stock_limit' },
         { data: 'supplier__name' },
         { data: 'id', defaultContent: '' } // Actions column
       ],
@@ -334,7 +351,7 @@ if (document.getElementById('productModal')) {
               text: '<i class="ti ti-printer me-1" ></i>Print',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [2, 3, 4, 5, 6, 7]
+                columns: [2, 3, 4, 5, 6, 7, 8]
               }
             },
             {
@@ -342,7 +359,7 @@ if (document.getElementById('productModal')) {
               text: '<i class="ti ti-file-text me-1" ></i>CSV',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [2, 3, 4, 5, 6, 7]
+                columns: [2, 3, 4, 5, 6, 7, 8]
               }
             },
             {
@@ -350,7 +367,7 @@ if (document.getElementById('productModal')) {
               text: '<i class="ti ti-file-spreadsheet me-1"></i>Excel',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [2, 3, 4, 5, 6, 7]
+                columns: [2, 3, 4, 5, 6, 7, 8]
               }
             },
             {
@@ -358,7 +375,7 @@ if (document.getElementById('productModal')) {
               text: '<i class="ti ti-file-description me-1"></i>PDF',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [2, 3, 4, 5, 6, 7]
+                columns: [2, 3, 4, 5, 6, 7, 8]
               }
             },
             {
@@ -366,7 +383,7 @@ if (document.getElementById('productModal')) {
               text: '<i class="ti ti-copy me-1" ></i>Copy',
               className: 'dropdown-item',
               exportOptions: {
-                columns: [2, 3, 4, 5, 6, 7]
+                columns: [2, 3, 4, 5, 6, 7, 8]
               }
             }
           ]
@@ -423,6 +440,7 @@ if (document.getElementById('productModal')) {
     $('#productForm select[name="category"]').val(String(data.category__id)).prop('disabled', true); 
     $('#productForm select[name="brand"]').val(String(data.brand__id)).prop('disabled', true);
     $('#productForm input[name="unit_price"]').val(data.unit_price).prop('readonly', true);
+    $('#productForm input[name="low_stock_limit"]').val(data.low_stock_limit).prop('readonly', true);
     $('#productForm select[name="supplier"]').val(String(data.supplier__id)).prop('disabled', true);
 
     // Remove submit button
@@ -447,6 +465,7 @@ if (document.getElementById('productModal')) {
     $('#productForm select[name="category"]').val(String(data.category__id)); 
     $('#productForm select[name="brand"]').val(String(data.brand__id));
     $('#productForm input[name="unit_price"]').val(data.unit_price);
+    $('#productForm input[name="low_stock_limit"]').val(data.low_stock_limit);
     $('#productForm select[name="supplier"]').val(String(data.supplier__id));
 
     console.log(data);
@@ -1521,22 +1540,319 @@ if (document.getElementById('branchForm')) {
   });
 }
 
+let stockBalanceRequestSequence = 0;
+let stockHistoryModalInstance = null;
+let stockHistoryDt = null;
+
+function getStockActionLabel(typeValue) {
+  if (typeValue === 'OUT') return 'Release Stock';
+  if (typeValue === 'BACKLOAD') return 'Transfer to Branch';
+  return 'Receive Stock';
+}
+
+function renderMovementActionMarkup(quantity, row) {
+  if (!row) return '';
+  const relatedBranchName = row['related_branch__name'] || '';
+  if (row['transaction_type'] === 'IN') {
+    return '<span class="fw-semibold text-success">Received ' + quantity + '</span>';
+  }
+  if (row['transaction_type'] === 'BLI') {
+    return '<span class="fw-semibold text-success">Transferred In ' + quantity + (relatedBranchName ? ' from ' + relatedBranchName : '') + '</span>';
+  }
+  if (row['transaction_type'] === 'BLO') {
+    return '<span class="fw-semibold text-danger">Transferred Out ' + quantity + (relatedBranchName ? ' to ' + relatedBranchName : '') + '</span>';
+  }
+  return '<span class="fw-semibold text-danger">Released ' + quantity + '</span>';
+}
+
+function resolveTableRow(dataTableApi, triggerElement) {
+  var tr = $(triggerElement).closest('tr');
+  if (tr.hasClass('child')) {
+    tr = tr.prev();
+  }
+  return dataTableApi.row(tr);
+}
+
+function clearStockFieldError(field) {
+  if (!field) return;
+  field.classList.remove('is-invalid');
+  const errorContainer = field.nextElementSibling;
+  if (errorContainer && errorContainer.classList.contains('fv-plugins-message-container')) {
+    errorContainer.innerHTML = '';
+  }
+}
+
+function setStockFieldError(field, messages) {
+  if (!field) return;
+  const items = Array.isArray(messages) ? messages : [messages];
+  field.classList.add('is-invalid');
+  const errorContainer = field.nextElementSibling;
+  if (errorContainer && errorContainer.classList.contains('fv-plugins-message-container')) {
+    errorContainer.innerHTML = items.join('<br>');
+  }
+}
+
+function clearStockFormValidation() {
+  const form = document.getElementById('stockForm');
+  if (!form) return;
+
+  form.querySelectorAll('input, select, textarea').forEach(clearStockFieldError);
+}
+
+function getStockBalanceCopy(typeValue) {
+  if (typeValue === 'OUT') {
+    return {
+      label: 'Current Balance Before Release',
+      hint: 'This is the quantity currently available in the selected branch.'
+    };
+  }
+  if (typeValue === 'BACKLOAD') {
+    return {
+      label: 'Current Balance in Source Branch',
+      hint: 'This is the quantity available to transfer from the selected branch.'
+    };
+  }
+  return {
+    label: 'Current Balance',
+    hint: 'This is the quantity currently on hand before you receive more stock.'
+  };
+}
+
+function updateStockBalancePanel(balanceValue, hintOverride) {
+  const wrapper = document.getElementById('stockCurrentBalanceWrapper');
+  const labelEl = document.getElementById('stockCurrentBalanceLabel');
+  const valueEl = document.getElementById('stockCurrentBalanceValue');
+  const hintEl = document.getElementById('stockCurrentBalanceHint');
+  const typeField = document.getElementById('stockType');
+
+  if (!wrapper || !labelEl || !valueEl || !hintEl || !typeField) return;
+
+  const copy = getStockBalanceCopy(typeField.value);
+  labelEl.textContent = copy.label;
+  valueEl.textContent = balanceValue;
+  hintEl.textContent = hintOverride || copy.hint;
+}
+
+async function refreshStockBalance() {
+  const branchField = document.getElementById('stockBranch');
+  const productField = document.getElementById('stockProduct');
+  const wrapper = document.getElementById('stockCurrentBalanceWrapper');
+
+  if (!branchField || !productField || !wrapper) return null;
+
+  const branchId = branchField.value;
+  const productId = productField.value;
+  if (!branchId || !productId) {
+    wrapper.dataset.currentBalance = '';
+    wrapper.classList.add('d-none');
+    updateStockBalancePanel('-', 'Select a branch and product to view the current balance.');
+    return null;
+  }
+
+  wrapper.classList.remove('d-none');
+  updateStockBalancePanel('...', 'Checking current balance for the selected branch and product.');
+
+  const requestId = ++stockBalanceRequestSequence;
+  try {
+    const response = await fetch(
+      '/stock-data/?branch_id=' + encodeURIComponent(branchId) + '&product_id=' + encodeURIComponent(productId)
+    );
+    if (!response.ok) {
+      throw new Error('Unable to load current balance.');
+    }
+
+    const payload = await response.json();
+    if (requestId !== stockBalanceRequestSequence) {
+      return wrapper.dataset.currentBalance === '' ? null : Number(wrapper.dataset.currentBalance);
+    }
+
+    const firstRow = Array.isArray(payload.data) && payload.data.length ? payload.data[0] : null;
+    const balance = firstRow && firstRow.quantity != null ? Number(firstRow.quantity) : 0;
+    wrapper.dataset.currentBalance = String(balance);
+    updateStockBalancePanel(String(balance));
+    return balance;
+  } catch (error) {
+    if (requestId !== stockBalanceRequestSequence) {
+      return wrapper.dataset.currentBalance === '' ? null : Number(wrapper.dataset.currentBalance);
+    }
+
+    wrapper.dataset.currentBalance = '';
+    updateStockBalancePanel('-', 'Current balance could not be loaded right now.');
+    return null;
+  }
+}
+
+function syncStockTransactionFields() {
+  const typeField = document.getElementById('stockType');
+  const relatedWrapper = document.getElementById('stockRelatedBranchWrapper');
+  const relatedBranch = document.getElementById('stockRelatedBranch');
+  const branchLabel = document.querySelector('label[for="stockBranch"]');
+  const relatedLabel = document.querySelector('label[for="stockRelatedBranch"]');
+  const actionGuide = document.getElementById('stockActionGuide');
+  const submitButton = document.getElementById('stockSubmitButton');
+
+  if (!typeField || !relatedWrapper || !relatedBranch) return;
+
+  const typeValue = typeField.value;
+  const isTransfer = typeValue === 'BACKLOAD';
+
+  relatedWrapper.classList.toggle('d-none', !isTransfer);
+  relatedBranch.required = isTransfer;
+  if (!isTransfer) {
+    relatedBranch.value = '';
+    clearStockFieldError(relatedBranch);
+  }
+
+  if (branchLabel) {
+    branchLabel.textContent = isTransfer ? 'From Branch' : 'Branch';
+  }
+  if (relatedLabel) {
+    relatedLabel.textContent = 'To Branch';
+  }
+  if (actionGuide) {
+    if (typeValue === 'OUT') {
+      actionGuide.textContent = 'Use this when stock leaves a branch. The current balance is shown before you submit.';
+    } else if (isTransfer) {
+      actionGuide.textContent = 'Moves stock from one branch to another. This is not counted as sales.';
+    } else {
+      actionGuide.textContent = 'Use this when new stock arrives in a branch.';
+    }
+  }
+  if (submitButton) {
+    submitButton.textContent = isTransfer ? 'Transfer Stock' : getStockActionLabel(typeValue);
+  }
+
+  void refreshStockBalance();
+}
+
+function buildStockHistoryModalUrl() {
+  const modalEl = document.getElementById('stockHistoryModal');
+  if (!modalEl) return '/movement-data/';
+
+  const params = new URLSearchParams();
+  const branchId = modalEl.dataset.branchId || '';
+  const productId = modalEl.dataset.productId || '';
+  const typeValue = modalEl.dataset.typeValue || '';
+  const dateFrom = modalEl.dataset.dateFrom || '';
+  const dateTo = modalEl.dataset.dateTo || '';
+  const groupId = modalEl.dataset.groupId || '';
+  if (branchId) params.set('branch_id', branchId);
+  if (productId) params.set('product_id', productId);
+  if (typeValue) params.set('type', typeValue);
+  if (dateFrom) params.set('date_from', dateFrom);
+  if (dateTo) params.set('date_to', dateTo);
+  if (groupId) params.set('group_id', groupId);
+
+  return '/movement-data/' + (params.toString() ? '?' + params.toString() : '');
+}
+
+function ensureStockHistoryModalTable() {
+  if (stockHistoryDt || !$('#stockHistoryModalTable').length) return;
+
+  stockHistoryDt = $('#stockHistoryModalTable').DataTable({
+    ajax: { url: buildStockHistoryModalUrl() },
+    columns: [
+      { data: 'date' },
+      { data: 'transaction_id' },
+      { data: 'balance_before', defaultContent: 0 },
+      { data: 'quantity' },
+      { data: 'balance_after', defaultContent: 0 },
+      { data: 'handled_by__username', defaultContent: '' },
+      { data: 'remarks', defaultContent: '' }
+    ],
+    columnDefs: [
+      {
+        targets: 0,
+        render: function (d) {
+          return d ? moment(d).format('YYYY-MM-DD HH:mm') : '';
+        }
+      },
+      {
+        targets: 2,
+        render: function (d) {
+          return '<span class="fw-semibold">' + (d ?? 0) + '</span>';
+        }
+      },
+      {
+        targets: 3,
+        render: function (d, type, row) {
+          return renderMovementActionMarkup(d, row);
+        }
+      },
+      {
+        targets: 4,
+        render: function (d) {
+          return '<span class="fw-semibold">' + (d ?? 0) + '</span>';
+        }
+      }
+    ],
+    order: [[0, 'desc']],
+    pageLength: 10,
+    lengthMenu: [10, 25, 50],
+    dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6 d-flex justify-content-md-end"f>>t<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>'
+  });
+}
+
+function openStockHistoryModal(options) {
+  const modalEl = document.getElementById('stockHistoryModal');
+  if (!modalEl) return;
+
+  modalEl.dataset.branchId = options.branchId ? String(options.branchId) : '';
+  modalEl.dataset.productId = options.productId ? String(options.productId) : '';
+  modalEl.dataset.typeValue = options.typeValue ? String(options.typeValue) : '';
+  modalEl.dataset.dateFrom = options.dateFrom ? String(options.dateFrom) : '';
+  modalEl.dataset.dateTo = options.dateTo ? String(options.dateTo) : '';
+  modalEl.dataset.groupId = options.groupId ? String(options.groupId) : '';
+
+  const branchName = options.branchName || 'All Branches';
+  const productName = options.productName || 'Selected Product';
+  const subtitle = document.getElementById('stockHistoryModalSubtitle');
+  const openTabLink = document.getElementById('stockHistoryModalOpenTab');
+
+  if (subtitle) {
+    subtitle.textContent = options.subtitle || (productName + ' in ' + branchName);
+  }
+  if (openTabLink) {
+    const params = new URLSearchParams();
+    if (options.branchId) params.set('branch_id', options.branchId);
+    if (options.productId) params.set('product_id', options.productId);
+    if (options.typeValue) params.set('type', options.typeValue);
+    if (options.dateFrom) params.set('date_from', options.dateFrom);
+    if (options.dateTo) params.set('date_to', options.dateTo);
+    if (options.groupId) params.set('group_id', options.groupId);
+    openTabLink.href = '/stock-history/' + (params.toString() ? '?' + params.toString() : '');
+  }
+
+  if (!stockHistoryModalInstance) {
+    stockHistoryModalInstance = new bootstrap.Modal(modalEl);
+  }
+
+  ensureStockHistoryModalTable();
+  if (stockHistoryDt) {
+    stockHistoryDt.ajax.url(buildStockHistoryModalUrl()).load();
+  }
+
+  stockHistoryModalInstance.show();
+  setTimeout(function () {
+    if (stockHistoryDt) {
+      stockHistoryDt.columns.adjust();
+    }
+  }, 150);
+}
+
 // Stock DataTable and Modal
 if (document.getElementById('stockModal')) {
   document.getElementById('stockModal').addEventListener('hidden.bs.modal', function () {
-    // Reset the form when the modal is closed
-    document.getElementById('stockForm').reset();
-    document.querySelectorAll('#stockForm input').forEach(input => {
-      input.classList.remove('is-invalid');
-      const errorContainer = input.nextElementSibling;
-      if (errorContainer && errorContainer.classList.contains('fv-plugins-message-container')) {
-        errorContainer.innerHTML = '';
-      }
-    });
+    const stockForm = document.getElementById('stockForm');
+    if (!stockForm) return;
+    stockForm.reset();
+    clearStockFormValidation();
+    syncStockTransactionFields();
   });
 
   $(function () {
   stockModalInstance = new bootstrap.Modal(document.getElementById('stockModal'));
+  syncStockTransactionFields();
   var dt_basic_table = $('.stock-datatables-basic'),
     dt_basic;
 
@@ -1544,11 +1860,18 @@ if (document.getElementById('stockModal')) {
   // --------------------------------------------------------------------
 
   if (dt_basic_table.length) {
+    function buildStockUrl() {
+      const branchId = window.currentBranchId ? String(window.currentBranchId) : '';
+      const productId = $('#levelProduct').val() || '';
+      let url = '/stock-data/' + (branchId ? branchId + '/' : '');
+      if (productId) {
+        url += (url.includes('?') ? '&' : '?') + 'product_id=' + encodeURIComponent(productId);
+      }
+      return url;
+    }
+
     dt_basic = dt_basic_table.DataTable({
-      // Dynamically set the branch_id for the AJAX URL
-      ajax: {
-        url: '/stock-data/' + (window.currentBranchId ? window.currentBranchId + '/' : ''),      
-      },
+      ajax: { url: buildStockUrl() },
       columns: [
         { data: null, defaultContent: '' }, // Control column
         { data: 'id' }, // Checkbox column
@@ -1586,7 +1909,7 @@ if (document.getElementById('stockModal')) {
         {
           targets: 6, // Stock Level column index
           render: function (data, type, full, meta) {
-            let value = data ? data.toLowerCase() : '';
+            let value = data.toLowerCase();
             let colorClass = '';
             if (value === 'low') {
               colorClass = 'bg-danger text-white';
@@ -1600,33 +1923,28 @@ if (document.getElementById('stockModal')) {
             return '<span class="badge ' + colorClass + '" style="font-size:1em;">' + data + '</span>';
           }
         },
-        {
-          targets: -1,
-          title: 'Actions',
-          orderable: false,
-          searchable: false,
-          render: function (data, type, full, meta) {
-            return (
-              '<div class="d-inline-block">' +
-              '<a href="javascript:;" class="btn btn-sm btn-icon dropdown-toggle hide-arrow" data-bs-toggle="dropdown"><i class="text-primary ti ti-dots-vertical"></i></a>' +
-              '<ul class="dropdown-menu dropdown-menu-end m-0">' +
-              '<li><a href="javascript:;" class="dropdown-item item-view" data-bs-toggle="modal" data-bs-target="#stockModal" data-id="' + full.id + '">Details</a></li>' +
-              '<div class="dropdown-divider"></div>' +
-              '<li><a href="javascript:;" class="dropdown-item text-danger delete-record">Delete</a></li>' +
-              '</ul>' +
-              '</div>' +
-              '<a href="javascript:;" class="btn btn-sm btn-icon item-edit" data-bs-toggle="modal" data-bs-target="#stockModal" data-id="' + full.id + '"><i class="text-primary ti ti-pencil"></i></a>'
-            );
+          {
+            targets: -1,
+            title: 'Actions',
+            orderable: false,
+            searchable: false,
+            render: function (data, type, full, meta) {
+              return (
+                '<div class="d-flex flex-wrap gap-1">' +
+                  '<a href="javascript:;" class="btn btn-sm btn-primary item-adjust" data-bs-toggle="modal" data-bs-target="#stockModal" data-id="' + full.id + '"><i class="ti ti-adjustments"></i> Record Action</a>' +
+                  '<button type="button" class="btn btn-sm btn-outline-primary item-view-log" data-id="' + full.id + '"><i class="ti ti-history me-1"></i>View Log</button>' +
+                '</div>'
+              );
+            }
           }
-        }
       ],
       order: [[2, 'desc']],
       dom: '<"card-header flex-column flex-md-row"<"head-label text-center"><"dt-action-buttons text-end pt-3 pt-md-0"B>><"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6 d-flex justify-content-center justify-content-md-end"f>>t<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
-      displayLength: 7,
+      displayLength: 10,
       lengthMenu: [7, 10, 25, 50, 75, 100],
       buttons: [
         {
-          text: '<i class="ti ti-plus me-sm-1"></i> <span class="d-none d-sm-inline-block">Add Stock Transaction</span>',
+          text: '<i class="ti ti-plus me-sm-1"></i> <span class="d-none d-sm-inline-block">Record Stock Action</span>',
           className: 'create-new btn btn-primary',
           attr: {
             'data-bs-toggle': 'modal',
@@ -1660,75 +1978,87 @@ if (document.getElementById('stockModal')) {
         }
       }
     });
+
+    // Prefill modal selects from current filters when creating a new transaction
+    $(document).on('click', '.create-new[data-bs-target="#stockModal"]', function(){
+      $('#stockModalLabel').text('Record Stock Action');
+      $('#stockForm').attr('action', '/add-stock/');
+      var b = window.currentBranchId ? String(window.currentBranchId) : '';
+      var p = $('#levelProduct').val();
+      if (b) $('#stockBranch').val(String(b));
+      if (p) $('#stockProduct').val(String(p));
+      $('#stockType').val('IN');
+      $('#stockRelatedBranch').val('');
+      $('#stockProductQuantity').val('');
+      $('#stockRemarks').val('');
+      syncStockTransactionFields();
+    });
+
+    $(document).on('click', '.stock-quick-action', function () {
+      resetModalInputs('stockModal');
+      const actionType = $(this).data('stockAction') || 'IN';
+      const currentBranch = window.currentBranchId ? String(window.currentBranchId) : '';
+      const currentProduct = $('#levelProduct').val() || '';
+
+      $('#stockModalLabel').text(getStockActionLabel(actionType));
+      $('#stockForm').attr('action', '/add-stock/');
+      $('#stockType').val(actionType);
+      $('#stockBranch').val(currentBranch);
+      $('#stockProduct').val(currentProduct);
+      $('#stockRelatedBranch').val('');
+      $('#stockProductQuantity').val('');
+      $('#stockRemarks').val('');
+      syncStockTransactionFields();
+
+      stockModalInstance.show();
+    });
+
+    // Filters: reload on change
+    $(document).on('change', '#levelProduct', function(){
+      dt_basic.ajax.url(buildStockUrl()).load();
+    });
+    $(document).on('click', '#levelClearFilters', function(){
+      $('#levelProduct').val('');
+      dt_basic.ajax.url(buildStockUrl()).load();
+    });
   }
 
-  // Handle view button click
-  $('.stock-datatables-basic tbody').on('click', '.item-view', function () {
-    var tr = $(this).closest('tr');
-    var row = dt_basic.row(tr);
+  // Handle adjust button click for Stock Level rows (creates a movement)
+  $('.stock-datatables-basic tbody').on('click', '.item-adjust', function () {
+    resetModalInputs('stockModal');
+    var row = resolveTableRow(dt_basic, this);
     var data = row.data();
 
-    // Fill modal fields
-    $('#stockModalLabel').text('View stock');
-    $('#stockForm').attr('action', '/view-stock/' + data.id + '/');
-    $('#stockForm input[name="stock_id"]').val(data.id).prop('readonly', true);
-    $('#stockForm input[name="name"]').val(data.name).prop('readonly', true);
-    $('#stockForm textarea[name="location"]').val(data.location).prop('readonly', true);
-
-    // Remove submit button
-    $('#stockForm button[type="submit"]').remove();
-    // Remove cancel button if it exists
-    $('#stockForm button[type="button"]').remove();
+    // Fill modal defaults for quick adjust
+    $('#stockModalLabel').text('Record Stock Action');
+    $('#stockForm').attr('action', '/add-stock/');
+    $('#stockForm select[name="product"]').val(String(data.product__id));
+    $('#stockForm select[name="branch"]').val(String(data.branch__id));
+    $('#stockForm input[name="quantity"]').val('');
+    $('#stockForm select[name="transaction_type"]').val('IN');
+    $('#stockForm select[name="related_branch"]').val('');
+    syncStockTransactionFields();
 
     stockModalInstance.show();
   });
 
-  // Handle edit button click
-  $('.stock-datatables-basic tbody').on('click', '.item-edit', function () {
-    var tr = $(this).closest('tr');
-    var row = dt_basic.row(tr);
+  $('.stock-datatables-basic tbody').on('click', '.item-view-log', function () {
+    var row = resolveTableRow(dt_basic, this);
     var data = row.data();
+    if (!data) return;
 
-    // Fill modal fields
-    $('#stockModalLabel').text('Edit stock');
-    $('#stockForm').attr('action', '/edit-stock/' + data.id + '/');
-    $('#stockForm input[name="stock_id"]').val(data.id).prop('readonly', true);
-    $('#stockForm input[name="name"]').val(data.name);
-    $('#stockForm textarea[name="location"]').val(data.location);
-
-    // Show the modal
-    stockModalInstance.show();
+    openStockHistoryModal({
+      branchId: data.branch__id,
+      branchName: data.branch__name,
+      productId: data.product__id,
+      productName: data.product__product_name
+    });
   });
 
-  // Delete Record
-  $('.stock-datatables-basic tbody').on('click', '.delete-record', function () {
-    var tr = $(this).closest('tr');
-    var row = dt_basic.row(tr);
-    var data = row.data();
-
-    // Perform the delete action here
-    if (confirm('Are you sure you want to delete this record?')) {
-      // Send a request to the server to delete the record
-      fetch('/delete-stock/' + data.id, {
-        method: 'DELETE',
-        headers: {
-          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-        }
-      })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            alert(data.message);
-            row.remove().draw();
-          } else {
-            alert('Error deleting record: ' + data.message);
-          }
-        });
-    }
-  });
+  // Deleting stock levels is not supported from the aggregate table; movements can be edited/deleted separately if needed.
 
   // After initializing the DataTable
-  $('.head-label.text-center').html('<h5 class="card-title mb-0">Branch Stocks</h5>');
+  dt_basic_table.closest('.card').find('.head-label.text-center').html('<h5 class="card-title mb-0">Current Stocks</h5>');
 
   // Filter form control to default size
   setTimeout(() => {
@@ -1738,9 +2068,957 @@ if (document.getElementById('stockModal')) {
 });
 }
 
+// Low Stock Alerts DataTable
+$(function () {
+  var low_table = $('.low-stock-datatables-basic');
+  if (!low_table.length) return;
+
+  function buildLowStockUrl() {
+    const params = new URLSearchParams();
+    const branchId = window.currentBranchId ? String(window.currentBranchId) : '';
+    const productId = $('#lowProduct').val() || '';
+
+    params.set('low_only', '1');
+    if (branchId) params.set('branch_id', branchId);
+    if (productId) params.set('product_id', productId);
+
+    return '/stock-data/?' + params.toString();
+  }
+
+  var low_dt = low_table.DataTable({
+    ajax: { url: buildLowStockUrl() },
+    columns: [
+      { data: null, defaultContent: '' },
+      { data: 'product__product_name' },
+      { data: 'product__brand__name' },
+      { data: 'quantity' },
+      { data: 'product__low_stock_limit' },
+      { data: 'short_by' },
+      { data: 'stock_level' },
+      { data: null, defaultContent: '' }
+    ],
+    columnDefs: [
+      {
+        className: 'control',
+        orderable: false,
+        searchable: false,
+        responsivePriority: 1,
+        targets: 0,
+        render: function () {
+          return '';
+        }
+      },
+      {
+        targets: 3,
+        render: function (data) {
+          return '<span class="fw-semibold text-danger">' + data + '</span>';
+        }
+      },
+      {
+        targets: 5,
+        render: function (data) {
+          return '<span class="badge bg-label-danger">' + data + '</span>';
+        }
+      },
+      {
+        targets: 6,
+        render: function (data) {
+          return '<span class="badge bg-danger text-white">' + data + '</span>';
+        }
+      },
+      {
+        targets: -1,
+        title: 'Actions',
+        orderable: false,
+        searchable: false,
+        render: function (data, type, full) {
+          return (
+            '<div class="d-flex flex-wrap gap-1">' +
+              '<button type="button" class="btn btn-sm btn-primary low-item-adjust" data-id="' + full.id + '">' +
+                '<i class="ti ti-plus me-1"></i>Refill Stock' +
+              '</button>' +
+              '<button type="button" class="btn btn-sm btn-outline-primary low-item-view-log" data-id="' + full.id + '">' +
+                '<i class="ti ti-history me-1"></i>View Log' +
+              '</button>' +
+            '</div>'
+          );
+        }
+      }
+    ],
+    order: [[5, 'desc'], [3, 'asc']],
+    dom: '<"card-header flex-column flex-md-row"<"head-label text-center"><"dt-action-buttons text-end pt-3 pt-md-0"B>><"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6 d-flex justify-content-center justify-content-md-end"f>>t<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
+    displayLength: 10,
+    lengthMenu: [7, 10, 25, 50, 75, 100],
+    buttons: [
+      {
+        extend: 'collection',
+        className: 'btn btn-label-primary dropdown-toggle me-2',
+        text: '<i class="ti ti-file-export me-sm-1"></i> <span class="d-none d-sm-inline-block">Export</span>',
+        buttons: [
+          { extend: 'csv', className: 'dropdown-item', exportOptions: { columns: [1, 2, 3, 4, 5, 6] } },
+          { extend: 'excel', className: 'dropdown-item', exportOptions: { columns: [1, 2, 3, 4, 5, 6] } },
+          { extend: 'pdf', className: 'dropdown-item', exportOptions: { columns: [1, 2, 3, 4, 5, 6] } },
+          { extend: 'copy', className: 'dropdown-item', exportOptions: { columns: [1, 2, 3, 4, 5, 6] } }
+        ]
+      },
+      {
+        text: '<i class="ti ti-plus me-sm-1"></i> <span class="d-none d-sm-inline-block">Record Stock Action</span>',
+        className: 'low-stock-create-new btn btn-primary',
+        attr: {
+          'data-bs-toggle': 'modal',
+          'data-bs-target': '#stockModal'
+        },
+        init: function (api, node) {
+          $(node).removeClass('btn-secondary');
+        }
+      }
+    ],
+    responsive: {
+      details: {
+        display: $.fn.dataTable.Responsive.display.modal({
+          header: function (row) {
+            var data = row.data();
+            return 'Low stock details for ' + data['product__product_name'];
+          }
+        }),
+        type: 'column',
+        renderer: function (api, rowIdx, columns) {
+          var data = $.map(columns, function (col) {
+            return col.title !== ''
+              ? '<tr data-dt-row="' + col.rowIndex + '" data-dt-column="' + col.columnIndex + '">' +
+                  '<td>' + col.title + ':</td> ' +
+                  '<td>' + col.data + '</td>' +
+                '</tr>'
+              : '';
+          }).join('');
+          return data ? $('<table class="table"/><tbody />').append(data) : false;
+        }
+      }
+    }
+  });
+
+  $(document).on('change', '#lowProduct', function () {
+    low_dt.ajax.url(buildLowStockUrl()).load();
+  });
+
+  $(document).on('click', '#lowClearFilters', function () {
+    $('#lowProduct').val('');
+    low_dt.ajax.url(buildLowStockUrl()).load();
+  });
+
+  $(document).on('click', '.low-stock-create-new[data-bs-target="#stockModal"]', function () {
+    resetModalInputs('stockModal');
+    $('#stockModalLabel').text('Record Stock Action');
+    $('#stockForm').attr('action', '/add-stock/');
+    $('#stockType').val('IN');
+    $('#stockBranch').val(window.currentBranchId ? String(window.currentBranchId) : '');
+    $('#stockProduct').val($('#lowProduct').val() || '');
+    $('#stockRelatedBranch').val('');
+    $('#stockProductQuantity').val('');
+    $('#stockRemarks').val('');
+    syncStockTransactionFields();
+  });
+
+  $('.low-stock-datatables-basic tbody').on('click', '.low-item-adjust', function () {
+    resetModalInputs('stockModal');
+    var row = resolveTableRow(low_dt, this);
+    var data = row.data();
+
+    $('#stockModalLabel').text('Refill Low Stock');
+    $('#stockForm').attr('action', '/add-stock/');
+    $('#stockType').val('IN');
+    $('#stockBranch').val(String(data.branch__id));
+    $('#stockProduct').val(String(data.product__id));
+    $('#stockRelatedBranch').val('');
+    $('#stockProductQuantity').val('');
+    $('#stockRemarks').val('Low stock replenishment');
+    syncStockTransactionFields();
+
+    stockModalInstance.show();
+  });
+
+  $('.low-stock-datatables-basic tbody').on('click', '.low-item-view-log', function () {
+    var row = resolveTableRow(low_dt, this);
+    var data = row.data();
+    if (!data) return;
+
+    openStockHistoryModal({
+      branchId: data.branch__id,
+      branchName: data.branch__name,
+      productId: data.product__id,
+      productName: data.product__product_name
+    });
+  });
+
+  low_table.closest('.card').find('.head-label.text-center').html('<h5 class="card-title mb-0">Low Stock Items</h5>');
+
+  setTimeout(() => {
+    $('.dataTables_filter .form-control').removeClass('form-control-sm');
+    $('.dataTables_length .form-select').removeClass('form-select-sm');
+  }, 300);
+});
+
+function formatPhpAmount(value) {
+  var amount = Number.parseFloat(value || 0);
+  if (Number.isNaN(amount)) amount = 0;
+  return 'PHP ' + amount.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
+function buildReportToolbarDom(includeFilters) {
+  var filterSlot = includeFilters ? '<"report-toolbar-filters">' : '';
+  return (
+    '<"card-header report-inline-toolbar d-flex flex-column flex-md-row align-items-md-end gap-3"' +
+    filterSlot +
+    '<"report-toolbar-actions d-flex flex-column flex-md-row align-items-md-end gap-2"<"dt-action-buttons"B><"report-toolbar-search"f>>>' +
+    't' +
+    '<"row align-items-center"<"col-sm-12 col-md-4"l><"col-sm-12 col-md-3"i><"col-sm-12 col-md-5 d-flex justify-content-center justify-content-md-end"p>>'
+  );
+}
+
+function mountReportToolbarFilters(sourceSelector, wrapperSelector) {
+  var source = $(sourceSelector);
+  var target = $(wrapperSelector + ' .report-toolbar-filters');
+  if (!source.length || !target.length) return;
+
+  target.empty().append(source.removeClass('d-none'));
+}
+
+function normalizeReportToolbarControls(wrapperSelector) {
+  $(wrapperSelector + ' .dataTables_filter .form-control').removeClass('form-control-sm');
+  $(wrapperSelector + ' .dataTables_length .form-select').removeClass('form-select-sm');
+}
+
+// Summary Reports
+$(function () {
+  var brandTableEl = $('#brandSummaryTable');
+  var categoryTableEl = $('#categorySummaryTable');
+  var itemTableEl = $('#itemSummaryTable');
+  if (!brandTableEl.length || !categoryTableEl.length || !itemTableEl.length) return;
+
+  function currentSummaryBranch() {
+    return $('#summaryBranch').val() || '';
+  }
+
+  function buildSummaryUrl(groupBy) {
+    const params = new URLSearchParams();
+    params.set('group_by', groupBy);
+    if (currentSummaryBranch()) params.set('branch_id', currentSummaryBranch());
+    return '/summary-report-data/?' + params.toString();
+  }
+
+  function updateSummaryCards(rows) {
+    const data = Array.isArray(rows) ? rows : [];
+    const totalProducts = data.length;
+    const totalQuantity = data.reduce((sum, row) => sum + Number(row.total_quantity || 0), 0);
+    const lowStockCount = data.filter(row => String(row.stock_status || '').toLowerCase() === 'low').length;
+    const totalValue = data.reduce((sum, row) => sum + Number(row.total_value || 0), 0);
+
+    $('#summaryProductsCard').text(totalProducts);
+    $('#summaryQuantityCard').text(totalQuantity);
+    $('#summaryLowStockCard').text(lowStockCount);
+    $('#summaryValueCard').text(formatPhpAmount(totalValue));
+  }
+
+  var summaryPrimaryDom = buildReportToolbarDom(true);
+  var summarySecondaryDom = buildReportToolbarDom(false);
+
+  var brandDt = brandTableEl.DataTable({
+    ajax: { url: buildSummaryUrl('brand') },
+    columns: [
+      { data: 'group_name' },
+      { data: 'item_count' },
+      { data: 'total_quantity' },
+      { data: 'total_value' }
+    ],
+    columnDefs: [
+      {
+        targets: 3,
+        render: function (d) {
+          return formatPhpAmount(d);
+        }
+      }
+    ],
+    order: [[2, 'desc']],
+    dom: summaryPrimaryDom,
+    buttons: [
+      {
+        extend: 'collection',
+        className: 'btn btn-label-primary dropdown-toggle me-2',
+        text: '<i class="ti ti-file-export me-sm-1"></i>Export',
+        buttons: [
+          { extend: 'csv', className: 'dropdown-item' },
+          { extend: 'excel', className: 'dropdown-item' },
+          { extend: 'pdf', className: 'dropdown-item' },
+          { extend: 'copy', className: 'dropdown-item' }
+        ]
+      }
+    ]
+  });
+
+  var categoryDt = categoryTableEl.DataTable({
+    ajax: { url: buildSummaryUrl('category') },
+    columns: [
+      { data: 'group_name' },
+      { data: 'item_count' },
+      { data: 'total_quantity' },
+      { data: 'total_value' }
+    ],
+    columnDefs: [
+      {
+        targets: 3,
+        render: function (d) {
+          return formatPhpAmount(d);
+        }
+      }
+    ],
+    order: [[2, 'desc']],
+    dom: summarySecondaryDom,
+    buttons: [
+      {
+        extend: 'collection',
+        className: 'btn btn-label-primary dropdown-toggle me-2',
+        text: '<i class="ti ti-file-export me-sm-1"></i>Export',
+        buttons: [
+          { extend: 'csv', className: 'dropdown-item' },
+          { extend: 'excel', className: 'dropdown-item' },
+          { extend: 'pdf', className: 'dropdown-item' },
+          { extend: 'copy', className: 'dropdown-item' }
+        ]
+      }
+    ]
+  });
+
+  var itemDt = itemTableEl.DataTable({
+    ajax: { url: buildSummaryUrl('item') },
+    columns: [
+      { data: 'product_name' },
+      { data: 'total_quantity' },
+      { data: 'low_stock_limit' },
+      { data: 'stock_status' },
+      { data: 'brand_name' },
+      { data: 'category_name' },
+      { data: 'unit_price' },
+      { data: 'total_value' },
+      { data: null, defaultContent: '' }
+    ],
+    columnDefs: [
+      {
+        targets: 6,
+        render: function (d) {
+          return formatPhpAmount(d);
+        }
+      },
+      {
+        targets: 7,
+        render: function (d) {
+          return formatPhpAmount(d);
+        }
+      },
+      {
+        targets: 3,
+        render: function (d) {
+          const value = String(d || '').toLowerCase();
+          if (value === 'low') return '<span class="badge bg-danger text-white">Low</span>';
+          if (value === 'medium') return '<span class="badge bg-warning text-dark">Medium</span>';
+          return '<span class="badge bg-success text-white">High</span>';
+        }
+      },
+      {
+        targets: [4, 5, 6, 7],
+        visible: false
+      },
+      {
+        targets: -1,
+        orderable: false,
+        searchable: false,
+        render: function (data, type, row) {
+          return '<button type="button" class="btn btn-sm btn-outline-primary summary-view-log"><i class="ti ti-history me-1"></i>View Log</button>';
+        }
+      }
+    ],
+    order: [[1, 'desc']],
+    dom: summarySecondaryDom,
+    buttons: [
+      {
+        extend: 'collection',
+        className: 'btn btn-label-primary dropdown-toggle me-2',
+        text: '<i class="ti ti-file-export me-sm-1"></i>Export',
+        buttons: [
+          { extend: 'csv', className: 'dropdown-item', exportOptions: { columns: [0, 1, 2, 3, 4, 5, 6, 7] } },
+          { extend: 'excel', className: 'dropdown-item', exportOptions: { columns: [0, 1, 2, 3, 4, 5, 6, 7] } },
+          { extend: 'pdf', className: 'dropdown-item', exportOptions: { columns: [0, 1, 2, 3, 4, 5, 6, 7] } },
+          { extend: 'copy', className: 'dropdown-item', exportOptions: { columns: [0, 1, 2, 3, 4, 5, 6, 7] } }
+        ]
+      }
+    ]
+  });
+
+  itemTableEl.on('xhr.dt', function (e, settings, json) {
+    updateSummaryCards(json && json.data ? json.data : []);
+  });
+
+  mountReportToolbarFilters('#summaryReportFilters', '#brandSummaryTable_wrapper');
+
+  itemTableEl.on('click', '.summary-view-log', function () {
+    var row = resolveTableRow(itemDt, this);
+    var data = row.data();
+    if (!data) return;
+
+    const branchId = currentSummaryBranch();
+    const branchName = $('#summaryBranch option:selected').text() || 'All Branches';
+    openStockHistoryModal({
+      branchId: branchId,
+      branchName: branchName,
+      productId: data.product_id,
+      productName: data.product_name,
+      subtitle: data.product_name + ' in ' + branchName
+    });
+  });
+
+  function reloadSummaryTables() {
+    brandDt.ajax.url(buildSummaryUrl('brand')).load();
+    categoryDt.ajax.url(buildSummaryUrl('category')).load();
+    itemDt.ajax.url(buildSummaryUrl('item')).load();
+  }
+
+  $(document).on('change', '#summaryBranch', reloadSummaryTables);
+  $(document).on('click', '#summaryClearFilters', function () {
+    $('#summaryBranch').val('');
+    reloadSummaryTables();
+  });
+
+  setTimeout(() => {
+    normalizeReportToolbarControls('#brandSummaryTable_wrapper');
+    normalizeReportToolbarControls('#categorySummaryTable_wrapper');
+    normalizeReportToolbarControls('#itemSummaryTable_wrapper');
+  }, 300);
+});
+
+// Daily Stock Out Report
+$(function () {
+  var salesTableEl = $('#dailySalesTable');
+  if (!salesTableEl.length) return;
+
+  if (document.getElementById('salesDateRange')) {
+    flatpickr('#salesDateRange', { mode: 'range', dateFormat: 'Y-m-d' });
+  }
+
+  function buildDailySalesUrl() {
+    const params = new URLSearchParams();
+    const branchId = $('#salesBranch').val() || '';
+    const productId = $('#salesProduct').val() || '';
+    const dateRange = $('#salesDateRange').val() || '';
+    if (branchId) params.set('branch_id', branchId);
+    if (productId) params.set('product_id', productId);
+    if (dateRange && dateRange.includes(' to ')) {
+      const parts = dateRange.split(' to ');
+      if (parts[0]) params.set('date_from', parts[0]);
+      if (parts[1]) params.set('date_to', parts[1]);
+    } else if (dateRange) {
+      params.set('date_from', dateRange);
+      params.set('date_to', dateRange);
+    }
+    return '/daily-sales-data/?' + params.toString();
+  }
+
+  function updateDailySalesCards(rows) {
+    const data = Array.isArray(rows) ? rows : [];
+    const totalRows = data.length;
+    const totalQuantity = data.reduce((sum, row) => sum + Number(row.total_quantity || 0), 0);
+    const totalValue = data.reduce((sum, row) => sum + Number(row.estimated_value || 0), 0);
+    const uniqueProducts = new Set(data.map(row => row.product_id).filter(Boolean)).size;
+
+    $('#salesRowsCard').text(totalRows);
+    $('#salesQuantityCard').text(totalQuantity);
+    $('#salesValueCard').text(formatPhpAmount(totalValue));
+    $('#salesProductsCard').text(uniqueProducts);
+  }
+
+  var salesDt = salesTableEl.DataTable({
+    ajax: { url: buildDailySalesUrl() },
+    columns: [
+      { data: 'sale_date' },
+      { data: 'branch_name' },
+      { data: 'product_name' },
+      { data: 'brand_name' },
+      { data: 'total_quantity' },
+      { data: 'estimated_value' },
+      { data: 'current_balance' },
+      { data: null, defaultContent: '' }
+    ],
+    columnDefs: [
+      {
+        targets: 0,
+        render: function (d) {
+          return d ? moment(d).format('YYYY-MM-DD') : '';
+        }
+      },
+      {
+        targets: 5,
+        render: function (d) {
+          return formatPhpAmount(d);
+        }
+      },
+      {
+        targets: -1,
+        orderable: false,
+        searchable: false,
+        render: function (data, type, row) {
+          return '<button type="button" class="btn btn-sm btn-outline-primary sales-view-log"><i class="ti ti-history me-1"></i>View Log</button>';
+        }
+      }
+    ],
+    order: [[0, 'desc'], [1, 'asc'], [2, 'asc']],
+    dom: buildReportToolbarDom(true),
+    buttons: [
+      {
+        extend: 'collection',
+        className: 'btn btn-label-primary dropdown-toggle me-2',
+        text: '<i class="ti ti-file-export me-sm-1"></i>Export',
+        buttons: [
+          { extend: 'csv', className: 'dropdown-item', exportOptions: { columns: [0, 1, 2, 3, 4, 5, 6] } },
+          { extend: 'excel', className: 'dropdown-item', exportOptions: { columns: [0, 1, 2, 3, 4, 5, 6] } },
+          { extend: 'pdf', className: 'dropdown-item', exportOptions: { columns: [0, 1, 2, 3, 4, 5, 6] } },
+          { extend: 'copy', className: 'dropdown-item', exportOptions: { columns: [0, 1, 2, 3, 4, 5, 6] } }
+        ]
+      }
+    ]
+  });
+
+  salesTableEl.on('xhr.dt', function (e, settings, json) {
+    updateDailySalesCards(json && json.data ? json.data : []);
+  });
+
+  mountReportToolbarFilters('#dailySalesReportFilters', '#dailySalesTable_wrapper');
+
+  salesTableEl.on('click', '.sales-view-log', function () {
+    var row = resolveTableRow(salesDt, this);
+    var data = row.data();
+    if (!data) return;
+
+    openStockHistoryModal({
+      branchId: data.branch_id,
+      branchName: data.branch_name,
+      productId: data.product_id,
+      productName: data.product_name,
+      typeValue: 'OUT',
+      dateFrom: data.sale_date,
+      dateTo: data.sale_date,
+      subtitle: data.product_name + ' in ' + data.branch_name + ' on ' + data.sale_date
+    });
+  });
+
+  function reloadDailySales() {
+    salesDt.ajax.url(buildDailySalesUrl()).load();
+  }
+
+  $(document).on('change', '#salesBranch,#salesProduct', reloadDailySales);
+  $(document).on('change', '#salesDateRange', function () {
+    setTimeout(reloadDailySales, 50);
+  });
+  $(document).on('click', '#salesClearFilters', function () {
+    $('#salesBranch').val('');
+    $('#salesProduct').val('');
+    $('#salesDateRange').val('');
+    reloadDailySales();
+  });
+
+  setTimeout(() => {
+    normalizeReportToolbarControls('#dailySalesTable_wrapper');
+  }, 300);
+});
+
+// Transfer Reports
+$(function () {
+  var transferTableEl = $('#transferReportTable');
+  if (!transferTableEl.length) return;
+
+  if (document.getElementById('transferDateRange')) {
+    flatpickr('#transferDateRange', { mode: 'range', dateFormat: 'Y-m-d' });
+  }
+
+  function buildTransferReportUrl() {
+    const params = new URLSearchParams();
+    const branchId = $('#transferBranch').val() || '';
+    const productId = $('#transferProduct').val() || '';
+    const dateRange = $('#transferDateRange').val() || '';
+    if (branchId) params.set('branch_id', branchId);
+    if (productId) params.set('product_id', productId);
+    if (dateRange && dateRange.includes(' to ')) {
+      const parts = dateRange.split(' to ');
+      if (parts[0]) params.set('date_from', parts[0]);
+      if (parts[1]) params.set('date_to', parts[1]);
+    } else if (dateRange) {
+      params.set('date_from', dateRange);
+      params.set('date_to', dateRange);
+    }
+    return '/transfer-report-data/?' + params.toString();
+  }
+
+  function updateTransferCards(rows) {
+    const data = Array.isArray(rows) ? rows : [];
+    const transferCount = data.length;
+    const totalQuantity = data.reduce((sum, row) => sum + Number(row.quantity || 0), 0);
+    const uniqueRoutes = new Set(
+      data.map(row => (row.source_branch_name || '') + '|' + (row.destination_branch_name || '')).filter(Boolean)
+    ).size;
+    const uniqueProducts = new Set(data.map(row => row.product_id).filter(Boolean)).size;
+
+    $('#transferCountCard').text(transferCount);
+    $('#transferQuantityCard').text(totalQuantity);
+    $('#transferRoutesCard').text(uniqueRoutes);
+    $('#transferProductsCard').text(uniqueProducts);
+  }
+
+  var transferDt = transferTableEl.DataTable({
+    ajax: { url: buildTransferReportUrl() },
+    columns: [
+      { data: 'transfer_date' },
+      { data: 'source_branch_name' },
+      { data: 'destination_branch_name' },
+      { data: 'product_name' },
+      { data: 'brand_name' },
+      { data: 'quantity' },
+      { data: 'handled_by_name' },
+      { data: null, defaultContent: '' }
+    ],
+    columnDefs: [
+      {
+        targets: 0,
+        render: function (d) {
+          return d ? moment(d).format('YYYY-MM-DD HH:mm') : '';
+        }
+      },
+      {
+        targets: -1,
+        orderable: false,
+        searchable: false,
+        render: function (data, type, row) {
+          if (!row.transaction_group_id) {
+            return '<button type="button" class="btn btn-sm btn-outline-primary" disabled><i class="ti ti-history me-1"></i>View Log</button>';
+          }
+          return '<button type="button" class="btn btn-sm btn-outline-primary transfer-view-log"><i class="ti ti-history me-1"></i>View Log</button>';
+        }
+      }
+    ],
+    order: [[0, 'desc'], [1, 'asc'], [3, 'asc']],
+    dom: buildReportToolbarDom(true),
+    buttons: [
+      {
+        extend: 'collection',
+        className: 'btn btn-label-primary dropdown-toggle me-2',
+        text: '<i class="ti ti-file-export me-sm-1"></i>Export',
+        buttons: [
+          { extend: 'csv', className: 'dropdown-item', exportOptions: { columns: [0, 1, 2, 3, 4, 5, 6] } },
+          { extend: 'excel', className: 'dropdown-item', exportOptions: { columns: [0, 1, 2, 3, 4, 5, 6] } },
+          { extend: 'pdf', className: 'dropdown-item', exportOptions: { columns: [0, 1, 2, 3, 4, 5, 6] } },
+          { extend: 'copy', className: 'dropdown-item', exportOptions: { columns: [0, 1, 2, 3, 4, 5, 6] } }
+        ]
+      }
+    ]
+  });
+
+  transferTableEl.on('xhr.dt', function (e, settings, json) {
+    updateTransferCards(json && json.data ? json.data : []);
+  });
+
+  mountReportToolbarFilters('#transferReportFilters', '#transferReportTable_wrapper');
+
+  transferTableEl.on('click', '.transfer-view-log', function () {
+    var row = resolveTableRow(transferDt, this);
+    var data = row.data();
+    if (!data || !data.transaction_group_id) return;
+
+    openStockHistoryModal({
+      productId: data.product_id,
+      productName: data.product_name,
+      groupId: data.transaction_group_id,
+      subtitle: data.product_name + ': ' + data.source_branch_name + ' to ' + data.destination_branch_name
+    });
+  });
+
+  function reloadTransferReports() {
+    transferDt.ajax.url(buildTransferReportUrl()).load();
+  }
+
+  $(document).on('change', '#transferBranch,#transferProduct', reloadTransferReports);
+  $(document).on('change', '#transferDateRange', function () {
+    setTimeout(reloadTransferReports, 50);
+  });
+  $(document).on('click', '#transferClearFilters', function () {
+    $('#transferBranch').val('');
+    $('#transferProduct').val('');
+    $('#transferDateRange').val('');
+    reloadTransferReports();
+  });
+
+  setTimeout(() => {
+    normalizeReportToolbarControls('#transferReportTable_wrapper');
+  }, 300);
+});
+
+// Stock Movements DataTable
+$(function () {
+  var mv_table = $('.movement-datatables-basic');
+  if (!mv_table.length) return;
+
+  // Initialize date range picker
+  if (document.getElementById('mvDateRange')) {
+    flatpickr('#mvDateRange', { mode: 'range', dateFormat: 'Y-m-d' });
+  }
+
+  function buildMovementUrl() {
+    const params = new URLSearchParams();
+    const b = window.currentBranchId ? String(window.currentBranchId) : '';
+    const p = $('#mvProduct').val() || '';
+    const t = $('#mvType').val() || '';
+    const g = $('#mvGroupId').val() || '';
+    const dr = $('#mvDateRange').val() || '';
+    if (b) params.set('branch_id', b);
+    if (p) params.set('product_id', p);
+    if (t) params.set('type', t);
+    if (g) params.set('group_id', g);
+    if (dr && dr.includes(' to ')) {
+      const parts = dr.split(' to ');
+      if (parts[0]) params.set('date_from', parts[0]);
+      if (parts[1]) params.set('date_to', parts[1]);
+    } else if (dr) {
+      params.set('date_from', dr);
+      params.set('date_to', dr);
+    }
+    return '/movement-data/?' + params.toString();
+  }
+
+  var mv_dt = mv_table.DataTable({
+    ajax: { url: buildMovementUrl() },
+    columns: [
+      { data: null, defaultContent: '' },
+      { data: 'date' },
+      { data: 'transaction_id' },
+      { data: 'product__product_name', render: function (data, type, row) { return data + ' (' + (row['product__brand__name'] || '') + ')'; } },
+      { data: 'balance_before', defaultContent: 0 },
+      { data: 'quantity' },
+      { data: 'balance_after' },
+      { data: 'handled_by__username', defaultContent: '' },
+      { data: 'remarks', defaultContent: '' }
+    ],
+    columnDefs: [
+      { className: 'control', orderable: false, searchable: false, targets: 0, render: function () { return ''; } },
+      { targets: 1, render: function (d) { return d ? moment(d).format('YYYY-MM-DD HH:mm') : ''; } },
+      {
+        targets: 4,
+        render: function (d) {
+          return '<span class="fw-semibold">' + (d ?? 0) + '</span>';
+        }
+      },
+      {
+        targets: 5,
+        render: function (d, type, row) {
+          return renderMovementActionMarkup(d, row);
+        }
+      },
+      {
+        targets: 6,
+        render: function (d) {
+          return '<span class="fw-semibold">' + (d ?? 0) + '</span>';
+        }
+      }
+    ],
+    order: [[1, 'desc']],
+    dom: '<"card-header flex-column flex-md-row"<"head-label text-center"><"dt-action-buttons text-end pt-3 pt-md-0"B>><"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6 d-flex justify-content-center justify-content-md-end"f>>t<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
+    buttons: [
+      {
+        extend: 'collection',
+        className: 'btn btn-label-primary dropdown-toggle me-2',
+        text: '<i class="ti ti-file-export me-sm-1"></i> <span class="d-none d-sm-inline-block">Export</span>',
+        buttons: [
+          { extend: 'csv', className: 'dropdown-item' },
+          { extend: 'excel', className: 'dropdown-item' },
+          { extend: 'pdf', className: 'dropdown-item' },
+          { extend: 'copy', className: 'dropdown-item' }
+        ]
+      }
+    ]
+  });
+
+  function reloadMovements() {
+    mv_dt.ajax.url(buildMovementUrl()).load();
+  }
+
+  function clearMovementFocus() {
+    if ($('#mvGroupId').length) {
+      $('#mvGroupId').val('');
+    }
+  }
+
+  $(document).on('change', '#mvProduct,#mvType', function () {
+    clearMovementFocus();
+    reloadMovements();
+  });
+  $(document).on('change', '#mvDateRange', function () {
+    clearMovementFocus();
+    setTimeout(reloadMovements, 50);
+  });
+});
+
+// Daily Transactions DataTable
+$(function () {
+  var dailyMvTable = $('.daily-movement-datatables-basic');
+  if (!dailyMvTable.length) return;
+
+  const todayIso = moment().format('YYYY-MM-DD');
+  if (document.getElementById('dailyMvDate')) {
+    flatpickr('#dailyMvDate', { dateFormat: 'Y-m-d' });
+    if (!$('#dailyMvDate').val()) {
+      $('#dailyMvDate').val(todayIso);
+    }
+  }
+
+  function buildDailyMovementUrl() {
+    const params = new URLSearchParams();
+    const branchId = window.currentBranchId ? String(window.currentBranchId) : '';
+    const productId = $('#dailyMvProduct').val() || '';
+    const typeValue = $('#dailyMvType').val() || '';
+    const selectedDate = $('#dailyMvDate').val() || todayIso;
+
+    if (branchId) params.set('branch_id', branchId);
+    if (productId) params.set('product_id', productId);
+    if (typeValue) params.set('type', typeValue);
+    if (selectedDate) {
+      params.set('date_from', selectedDate);
+      params.set('date_to', selectedDate);
+    }
+
+    return '/movement-data/?' + params.toString();
+  }
+
+  var dailyMvDt = dailyMvTable.DataTable({
+    ajax: { url: buildDailyMovementUrl() },
+    columns: [
+      { data: null, defaultContent: '' },
+      { data: 'date' },
+      { data: 'transaction_id' },
+      { data: 'product__product_name', render: function (data, type, row) { return data + ' (' + (row['product__brand__name'] || '') + ')'; } },
+      { data: 'balance_before', defaultContent: 0 },
+      { data: 'quantity' },
+      { data: 'balance_after' },
+      { data: 'handled_by__username', defaultContent: '' },
+      { data: 'remarks', defaultContent: '' }
+    ],
+    columnDefs: [
+      { className: 'control', orderable: false, searchable: false, targets: 0, render: function () { return ''; } },
+      { targets: 1, render: function (d) { return d ? moment(d).format('YYYY-MM-DD HH:mm') : ''; } },
+      {
+        targets: 4,
+        render: function (d) {
+          return '<span class="fw-semibold">' + (d ?? 0) + '</span>';
+        }
+      },
+      {
+        targets: 5,
+        render: function (d, type, row) {
+          return renderMovementActionMarkup(d, row);
+        }
+      },
+      {
+        targets: 6,
+        render: function (d) {
+          return '<span class="fw-semibold">' + (d ?? 0) + '</span>';
+        }
+      }
+    ],
+    order: [[1, 'desc']],
+    dom: '<"card-header flex-column flex-md-row"<"head-label text-center"><"dt-action-buttons text-end pt-3 pt-md-0"B>><"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6 d-flex justify-content-center justify-content-md-end"f>>t<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
+    buttons: [
+      {
+        extend: 'collection',
+        className: 'btn btn-label-primary dropdown-toggle me-2',
+        text: '<i class="ti ti-file-export me-sm-1"></i> <span class="d-none d-sm-inline-block">Export</span>',
+        buttons: [
+          { extend: 'csv', className: 'dropdown-item' },
+          { extend: 'excel', className: 'dropdown-item' },
+          { extend: 'pdf', className: 'dropdown-item' },
+          { extend: 'copy', className: 'dropdown-item' }
+        ]
+      }
+    ]
+  });
+
+  dailyMvTable.closest('.card').find('.head-label.text-center').html('<h5 class="card-title mb-0">Daily Transactions</h5>');
+
+  function reloadDailyMovements() {
+    dailyMvDt.ajax.url(buildDailyMovementUrl()).load();
+  }
+
+  $(document).on('change', '#dailyMvProduct,#dailyMvType', reloadDailyMovements);
+  $(document).on('change', '#dailyMvDate', function () {
+    setTimeout(reloadDailyMovements, 50);
+  });
+  $(document).on('click', '#dailyMvClearFilters', function () {
+    $('#dailyMvProduct').val('');
+    $('#dailyMvType').val('');
+    $('#dailyMvDate').val(todayIso);
+    reloadDailyMovements();
+  });
+});
+$(document).on('shown.bs.tab', '#stocksWorkspaceTabs [data-bs-toggle="tab"], #reportsWorkspaceTabs [data-bs-toggle="tab"]', function () {
+  setTimeout(function () {
+    if ($.fn.dataTable) {
+      $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust();
+    }
+  }, 100);
+});
+$(document).on('change', '#stockType', syncStockTransactionFields);
+$(document).on('change', '#stockBranch,#stockProduct', function () {
+  clearStockFieldError(this);
+  void refreshStockBalance();
+});
+$(document).on('change', '#stockRelatedBranch', function () {
+  clearStockFieldError(this);
+});
+$(document).on('input', '#stockProductQuantity', function () {
+  clearStockFieldError(this);
+});
 if (document.getElementById('stockForm')) {
-  document.getElementById('stockForm').addEventListener('submit', function (e) {
+  document.getElementById('stockForm').addEventListener('submit', async function (e) {
     e.preventDefault();
+
+    clearStockFormValidation();
+
+    const branchField = this.querySelector('[name="branch"]');
+    const productField = this.querySelector('[name="product"]');
+    const typeField = this.querySelector('[name="transaction_type"]');
+    const relatedBranchField = this.querySelector('[name="related_branch"]');
+    const quantityField = this.querySelector('[name="quantity"]');
+
+    const typeValue = typeField ? typeField.value : 'IN';
+    const quantityValue = Number(quantityField && quantityField.value ? quantityField.value : 0);
+    let hasClientErrors = false;
+
+    if (typeValue === 'BACKLOAD') {
+      if (!relatedBranchField || !relatedBranchField.value) {
+        setStockFieldError(relatedBranchField, 'Choose the destination branch for this transfer.');
+        hasClientErrors = true;
+      } else if (branchField && branchField.value && relatedBranchField.value === branchField.value) {
+        setStockFieldError(relatedBranchField, 'Destination branch must be different from the source branch.');
+        hasClientErrors = true;
+      }
+    }
+
+    if ((typeValue === 'OUT' || typeValue === 'BACKLOAD') && branchField && branchField.value && productField && productField.value && quantityValue > 0) {
+      const currentBalance = await refreshStockBalance();
+      if (currentBalance !== null && quantityValue > currentBalance) {
+        setStockFieldError(quantityField, 'Only ' + currentBalance + ' item(s) are currently available in this branch.');
+        hasClientErrors = true;
+      }
+    }
+
+    if (hasClientErrors) {
+      return;
+    }
 
     const formData = new FormData(this);
 
@@ -1767,13 +3045,15 @@ if (document.getElementById('stockForm')) {
           location.reload(); // Reload the page or update the table dynamically
         } else {
           // Display validation errors
-          for (const [field, errors] of Object.entries(data.errors)) {
-            const input = document.querySelector(`[name=${field}]`);
-            if (input) {
-              const errorContainer = input.nextElementSibling;
-              errorContainer.innerHTML = errors.join('<br>');
-              input.classList.add('is-invalid');
+          if (data.errors) {
+            for (const [field, errors] of Object.entries(data.errors)) {
+              const input = document.querySelector(`[name=${field}]`);
+              if (input) {
+                setStockFieldError(input, errors);
+              }
             }
+          } else if (data.message) {
+            alert(data.message);
           }
         }
       })
@@ -1795,7 +3075,7 @@ function resetModalInputs(modalId) {
         // reset modal-title
         const modalTitle = modal.querySelector('.modal-title');
         if (modalTitle) {
-          modalTitle.textContent = 'Add New Record'; // Reset to default title
+          modalTitle.textContent = modalId === 'stockModal' ? 'Record Stock Action' : 'Add New Record'; // Reset to default title
         }
         input.classList.remove('is-invalid');
         input.removeAttribute('readonly');
@@ -1832,11 +3112,19 @@ function resetModalInputs(modalId) {
       const submitBtn = form.querySelector('button[type="submit"]');
       const btnContainer = form.querySelector('.col-12.text-center');
       if (!submitBtn && btnContainer) {
-        btnContainer.innerHTML = `
-          <button type="submit" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Submit</button>
-          <button type="button" class="btn btn-label-secondary waves-effect" data-bs-dismiss="modal">Cancel</button>
-        `;
+        if (modalId === 'stockModal') {
+          btnContainer.innerHTML = `
+            <button type="submit" id="stockSubmitButton" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Receive Stock</button>
+            <button type="button" class="btn btn-label-secondary waves-effect" data-bs-dismiss="modal">Cancel</button>
+          `;
+        } else {
+          btnContainer.innerHTML = `
+            <button type="submit" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Submit</button>
+            <button type="button" class="btn btn-label-secondary waves-effect" data-bs-dismiss="modal">Cancel</button>
+          `;
+        }
       }
+      syncStockTransactionFields();
     }
   } else {
     // If the modal is not found, log an error
