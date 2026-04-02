@@ -416,15 +416,28 @@ def manage_stocks(request, branch_id=None, stock_id=None):
             except ValueError:
                 branch_id = None
     branch = None
+    branches_list = Branches.objects.all().order_by('name').annotate(
+        tracked_products_count=Count(
+            'stocklevel',
+            filter=Q(stocklevel__is_active=True),
+            distinct=True,
+        ),
+        low_stock_count=Count(
+            'stocklevel',
+            filter=Q(stocklevel__is_active=True, stocklevel__quantity__lte=F('stocklevel__product__low_stock_limit')),
+            distinct=True,
+        ),
+        total_quantity=Coalesce(
+            Sum('stocklevel__quantity', filter=Q(stocklevel__is_active=True)),
+            Value(0),
+        ),
+    )
+    products = Products.objects.all().select_related('brand')
     if branch_id:
         branch = get_object_or_404(Branches, pk=branch_id)
         stocks = StockLevel.objects.filter(branch=branch).select_related('product', 'product__brand')
-        products = Products.objects.all().select_related('brand')
-        branches_list = Branches.objects.all()
     else:
-        branches_list = Branches.objects.all()
-        stocks = StockLevel.objects.all().select_related('product', 'product__brand')
-        products = Products.objects.all().select_related('brand')
+        stocks = StockLevel.objects.none()
 
     if stock_id:
         stock = get_object_or_404(StockLevel, pk=stock_id, branch=branch) if branch else get_object_or_404(StockLevel, pk=stock_id)

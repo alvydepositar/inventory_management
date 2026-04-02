@@ -1552,14 +1552,15 @@ function getStockActionLabel(typeValue) {
 
 function renderMovementActionMarkup(quantity, row) {
   if (!row) return '';
+  const relatedBranchName = row['related_branch__name'] || '';
   if (row['transaction_type'] === 'IN') {
     return '<span class="fw-semibold text-success">Received ' + quantity + '</span>';
   }
   if (row['transaction_type'] === 'BLI') {
-    return '<span class="fw-semibold text-success">Transferred In ' + quantity + '</span>';
+    return '<span class="fw-semibold text-success">Transferred In ' + quantity + (relatedBranchName ? ' from ' + relatedBranchName : '') + '</span>';
   }
   if (row['transaction_type'] === 'BLO') {
-    return '<span class="fw-semibold text-danger">Transferred Out ' + quantity + '</span>';
+    return '<span class="fw-semibold text-danger">Transferred Out ' + quantity + (relatedBranchName ? ' to ' + relatedBranchName : '') + '</span>';
   }
   return '<span class="fw-semibold text-danger">Released ' + quantity + '</span>';
 }
@@ -1860,7 +1861,7 @@ if (document.getElementById('stockModal')) {
 
   if (dt_basic_table.length) {
     function buildStockUrl() {
-      const branchId = $('#levelBranch').val() || (window.currentBranchId ? String(window.currentBranchId) : '');
+      const branchId = window.currentBranchId ? String(window.currentBranchId) : '';
       const productId = $('#levelProduct').val() || '';
       let url = '/stock-data/' + (branchId ? branchId + '/' : '');
       if (productId) {
@@ -1875,7 +1876,6 @@ if (document.getElementById('stockModal')) {
         { data: null, defaultContent: '' }, // Control column
         { data: 'id' }, // Checkbox column
         { data: 'id' },
-        { data: 'branch__name' },
         { data: 'product__product_name' },
         { data: 'product__brand__name' },
         { data: 'quantity' },
@@ -1907,7 +1907,7 @@ if (document.getElementById('stockModal')) {
         },
         // Add custom render for Stock Level column
         {
-          targets: 7, // Stock Level column index
+          targets: 6, // Stock Level column index
           render: function (data, type, full, meta) {
             let value = data.toLowerCase();
             let colorClass = '';
@@ -1983,7 +1983,7 @@ if (document.getElementById('stockModal')) {
     $(document).on('click', '.create-new[data-bs-target="#stockModal"]', function(){
       $('#stockModalLabel').text('Record Stock Action');
       $('#stockForm').attr('action', '/add-stock/');
-      var b = $('#levelBranch').val();
+      var b = window.currentBranchId ? String(window.currentBranchId) : '';
       var p = $('#levelProduct').val();
       if (b) $('#stockBranch').val(String(b));
       if (p) $('#stockProduct').val(String(p));
@@ -1997,7 +1997,7 @@ if (document.getElementById('stockModal')) {
     $(document).on('click', '.stock-quick-action', function () {
       resetModalInputs('stockModal');
       const actionType = $(this).data('stockAction') || 'IN';
-      const currentBranch = $('#levelBranch').val() || '';
+      const currentBranch = window.currentBranchId ? String(window.currentBranchId) : '';
       const currentProduct = $('#levelProduct').val() || '';
 
       $('#stockModalLabel').text(getStockActionLabel(actionType));
@@ -2014,17 +2014,11 @@ if (document.getElementById('stockModal')) {
     });
 
     // Filters: reload on change
-    $(document).on('change', '#levelBranch', function(){
-      window.currentBranchId = this.value || null;
-      dt_basic.ajax.url(buildStockUrl()).load();
-    });
     $(document).on('change', '#levelProduct', function(){
       dt_basic.ajax.url(buildStockUrl()).load();
     });
     $(document).on('click', '#levelClearFilters', function(){
-      $('#levelBranch').val('');
       $('#levelProduct').val('');
-      window.currentBranchId = null;
       dt_basic.ajax.url(buildStockUrl()).load();
     });
   }
@@ -2081,7 +2075,7 @@ $(function () {
 
   function buildLowStockUrl() {
     const params = new URLSearchParams();
-    const branchId = $('#lowBranch').val() || '';
+    const branchId = window.currentBranchId ? String(window.currentBranchId) : '';
     const productId = $('#lowProduct').val() || '';
 
     params.set('low_only', '1');
@@ -2095,7 +2089,6 @@ $(function () {
     ajax: { url: buildLowStockUrl() },
     columns: [
       { data: null, defaultContent: '' },
-      { data: 'branch__name' },
       { data: 'product__product_name' },
       { data: 'product__brand__name' },
       { data: 'quantity' },
@@ -2116,19 +2109,19 @@ $(function () {
         }
       },
       {
-        targets: 4,
+        targets: 3,
         render: function (data) {
           return '<span class="fw-semibold text-danger">' + data + '</span>';
         }
       },
       {
-        targets: 6,
+        targets: 5,
         render: function (data) {
           return '<span class="badge bg-label-danger">' + data + '</span>';
         }
       },
       {
-        targets: 7,
+        targets: 6,
         render: function (data) {
           return '<span class="badge bg-danger text-white">' + data + '</span>';
         }
@@ -2152,7 +2145,7 @@ $(function () {
         }
       }
     ],
-    order: [[6, 'desc'], [4, 'asc']],
+    order: [[5, 'desc'], [3, 'asc']],
     dom: '<"card-header flex-column flex-md-row"<"head-label text-center"><"dt-action-buttons text-end pt-3 pt-md-0"B>><"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6 d-flex justify-content-center justify-content-md-end"f>>t<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
     displayLength: 10,
     lengthMenu: [7, 10, 25, 50, 75, 100],
@@ -2162,10 +2155,10 @@ $(function () {
         className: 'btn btn-label-primary dropdown-toggle me-2',
         text: '<i class="ti ti-file-export me-sm-1"></i> <span class="d-none d-sm-inline-block">Export</span>',
         buttons: [
-          { extend: 'csv', className: 'dropdown-item', exportOptions: { columns: [1, 2, 3, 4, 5, 6, 7] } },
-          { extend: 'excel', className: 'dropdown-item', exportOptions: { columns: [1, 2, 3, 4, 5, 6, 7] } },
-          { extend: 'pdf', className: 'dropdown-item', exportOptions: { columns: [1, 2, 3, 4, 5, 6, 7] } },
-          { extend: 'copy', className: 'dropdown-item', exportOptions: { columns: [1, 2, 3, 4, 5, 6, 7] } }
+          { extend: 'csv', className: 'dropdown-item', exportOptions: { columns: [1, 2, 3, 4, 5, 6] } },
+          { extend: 'excel', className: 'dropdown-item', exportOptions: { columns: [1, 2, 3, 4, 5, 6] } },
+          { extend: 'pdf', className: 'dropdown-item', exportOptions: { columns: [1, 2, 3, 4, 5, 6] } },
+          { extend: 'copy', className: 'dropdown-item', exportOptions: { columns: [1, 2, 3, 4, 5, 6] } }
         ]
       },
       {
@@ -2204,12 +2197,11 @@ $(function () {
     }
   });
 
-  $(document).on('change', '#lowBranch,#lowProduct', function () {
+  $(document).on('change', '#lowProduct', function () {
     low_dt.ajax.url(buildLowStockUrl()).load();
   });
 
   $(document).on('click', '#lowClearFilters', function () {
-    $('#lowBranch').val('');
     $('#lowProduct').val('');
     low_dt.ajax.url(buildLowStockUrl()).load();
   });
@@ -2219,7 +2211,7 @@ $(function () {
     $('#stockModalLabel').text('Record Stock Action');
     $('#stockForm').attr('action', '/add-stock/');
     $('#stockType').val('IN');
-    $('#stockBranch').val($('#lowBranch').val() || '');
+    $('#stockBranch').val(window.currentBranchId ? String(window.currentBranchId) : '');
     $('#stockProduct').val($('#lowProduct').val() || '');
     $('#stockRelatedBranch').val('');
     $('#stockProductQuantity').val('');
@@ -2275,6 +2267,30 @@ function formatPhpAmount(value) {
   });
 }
 
+function buildReportToolbarDom(includeFilters) {
+  var filterSlot = includeFilters ? '<"report-toolbar-filters">' : '';
+  return (
+    '<"card-header report-inline-toolbar d-flex flex-column flex-md-row align-items-md-end gap-3"' +
+    filterSlot +
+    '<"report-toolbar-actions d-flex flex-column flex-md-row align-items-md-end gap-2"<"dt-action-buttons"B><"report-toolbar-search"f>>>' +
+    't' +
+    '<"row align-items-center"<"col-sm-12 col-md-4"l><"col-sm-12 col-md-3"i><"col-sm-12 col-md-5 d-flex justify-content-center justify-content-md-end"p>>'
+  );
+}
+
+function mountReportToolbarFilters(sourceSelector, wrapperSelector) {
+  var source = $(sourceSelector);
+  var target = $(wrapperSelector + ' .report-toolbar-filters');
+  if (!source.length || !target.length) return;
+
+  target.empty().append(source.removeClass('d-none'));
+}
+
+function normalizeReportToolbarControls(wrapperSelector) {
+  $(wrapperSelector + ' .dataTables_filter .form-control').removeClass('form-control-sm');
+  $(wrapperSelector + ' .dataTables_length .form-select').removeClass('form-select-sm');
+}
+
 // Summary Reports
 $(function () {
   var brandTableEl = $('#brandSummaryTable');
@@ -2306,7 +2322,8 @@ $(function () {
     $('#summaryValueCard').text(formatPhpAmount(totalValue));
   }
 
-  var commonDom = '<"card-header flex-column flex-md-row justify-content-end"<"dt-action-buttons text-end pt-3 pt-md-0"B>><"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6 d-flex justify-content-center justify-content-md-end"f>>t<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>';
+  var summaryPrimaryDom = buildReportToolbarDom(true);
+  var summarySecondaryDom = buildReportToolbarDom(false);
 
   var brandDt = brandTableEl.DataTable({
     ajax: { url: buildSummaryUrl('brand') },
@@ -2325,7 +2342,7 @@ $(function () {
       }
     ],
     order: [[2, 'desc']],
-    dom: commonDom,
+    dom: summaryPrimaryDom,
     buttons: [
       {
         extend: 'collection',
@@ -2358,7 +2375,7 @@ $(function () {
       }
     ],
     order: [[2, 'desc']],
-    dom: commonDom,
+    dom: summarySecondaryDom,
     buttons: [
       {
         extend: 'collection',
@@ -2423,7 +2440,7 @@ $(function () {
       }
     ],
     order: [[1, 'desc']],
-    dom: commonDom,
+    dom: summarySecondaryDom,
     buttons: [
       {
         extend: 'collection',
@@ -2442,6 +2459,8 @@ $(function () {
   itemTableEl.on('xhr.dt', function (e, settings, json) {
     updateSummaryCards(json && json.data ? json.data : []);
   });
+
+  mountReportToolbarFilters('#summaryReportFilters', '#brandSummaryTable_wrapper');
 
   itemTableEl.on('click', '.summary-view-log', function () {
     var row = resolveTableRow(itemDt, this);
@@ -2472,12 +2491,9 @@ $(function () {
   });
 
   setTimeout(() => {
-    $('#brandSummaryTable_wrapper .dataTables_filter .form-control').removeClass('form-control-sm');
-    $('#brandSummaryTable_wrapper .dataTables_length .form-select').removeClass('form-select-sm');
-    $('#categorySummaryTable_wrapper .dataTables_filter .form-control').removeClass('form-control-sm');
-    $('#categorySummaryTable_wrapper .dataTables_length .form-select').removeClass('form-select-sm');
-    $('#itemSummaryTable_wrapper .dataTables_filter .form-control').removeClass('form-control-sm');
-    $('#itemSummaryTable_wrapper .dataTables_length .form-select').removeClass('form-select-sm');
+    normalizeReportToolbarControls('#brandSummaryTable_wrapper');
+    normalizeReportToolbarControls('#categorySummaryTable_wrapper');
+    normalizeReportToolbarControls('#itemSummaryTable_wrapper');
   }, 300);
 });
 
@@ -2556,7 +2572,7 @@ $(function () {
       }
     ],
     order: [[0, 'desc'], [1, 'asc'], [2, 'asc']],
-    dom: '<"card-header flex-column flex-md-row justify-content-end"<"dt-action-buttons text-end pt-3 pt-md-0"B>><"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6 d-flex justify-content-center justify-content-md-end"f>>t<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
+    dom: buildReportToolbarDom(true),
     buttons: [
       {
         extend: 'collection',
@@ -2575,6 +2591,8 @@ $(function () {
   salesTableEl.on('xhr.dt', function (e, settings, json) {
     updateDailySalesCards(json && json.data ? json.data : []);
   });
+
+  mountReportToolbarFilters('#dailySalesReportFilters', '#dailySalesTable_wrapper');
 
   salesTableEl.on('click', '.sales-view-log', function () {
     var row = resolveTableRow(salesDt, this);
@@ -2609,8 +2627,7 @@ $(function () {
   });
 
   setTimeout(() => {
-    $('#dailySalesTable_wrapper .dataTables_filter .form-control').removeClass('form-control-sm');
-    $('#dailySalesTable_wrapper .dataTables_length .form-select').removeClass('form-select-sm');
+    normalizeReportToolbarControls('#dailySalesTable_wrapper');
   }, 300);
 });
 
@@ -2688,7 +2705,7 @@ $(function () {
       }
     ],
     order: [[0, 'desc'], [1, 'asc'], [3, 'asc']],
-    dom: '<"card-header flex-column flex-md-row justify-content-end"<"dt-action-buttons text-end pt-3 pt-md-0"B>><"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6 d-flex justify-content-center justify-content-md-end"f>>t<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
+    dom: buildReportToolbarDom(true),
     buttons: [
       {
         extend: 'collection',
@@ -2707,6 +2724,8 @@ $(function () {
   transferTableEl.on('xhr.dt', function (e, settings, json) {
     updateTransferCards(json && json.data ? json.data : []);
   });
+
+  mountReportToolbarFilters('#transferReportFilters', '#transferReportTable_wrapper');
 
   transferTableEl.on('click', '.transfer-view-log', function () {
     var row = resolveTableRow(transferDt, this);
@@ -2737,8 +2756,7 @@ $(function () {
   });
 
   setTimeout(() => {
-    $('#transferReportTable_wrapper .dataTables_filter .form-control').removeClass('form-control-sm');
-    $('#transferReportTable_wrapper .dataTables_length .form-select').removeClass('form-select-sm');
+    normalizeReportToolbarControls('#transferReportTable_wrapper');
   }, 300);
 });
 
@@ -2754,7 +2772,7 @@ $(function () {
 
   function buildMovementUrl() {
     const params = new URLSearchParams();
-    const b = $('#mvBranch').val() || (window.currentBranchId ? String(window.currentBranchId) : '');
+    const b = window.currentBranchId ? String(window.currentBranchId) : '';
     const p = $('#mvProduct').val() || '';
     const t = $('#mvType').val() || '';
     const g = $('#mvGroupId').val() || '';
@@ -2780,7 +2798,6 @@ $(function () {
       { data: null, defaultContent: '' },
       { data: 'date' },
       { data: 'transaction_id' },
-      { data: 'branch__name' },
       { data: 'product__product_name', render: function (data, type, row) { return data + ' (' + (row['product__brand__name'] || '') + ')'; } },
       { data: 'balance_before', defaultContent: 0 },
       { data: 'quantity' },
@@ -2792,31 +2809,19 @@ $(function () {
       { className: 'control', orderable: false, searchable: false, targets: 0, render: function () { return ''; } },
       { targets: 1, render: function (d) { return d ? moment(d).format('YYYY-MM-DD HH:mm') : ''; } },
       {
-        targets: 3,
-        render: function (d, type, row) {
-          if (row['transaction_type'] === 'BLO') {
-            return row['related_branch__name'] ? d + ' to ' + row['related_branch__name'] : (d || '');
-          }
-          if (row['transaction_type'] === 'BLI') {
-            return row['related_branch__name'] ? d + ' from ' + row['related_branch__name'] : (d || '');
-          }
-          return d || '';
-        }
-      },
-      {
-        targets: 5,
+        targets: 4,
         render: function (d) {
           return '<span class="fw-semibold">' + (d ?? 0) + '</span>';
         }
       },
       {
-        targets: 6,
+        targets: 5,
         render: function (d, type, row) {
           return renderMovementActionMarkup(d, row);
         }
       },
       {
-        targets: 7,
+        targets: 6,
         render: function (d) {
           return '<span class="fw-semibold">' + (d ?? 0) + '</span>';
         }
@@ -2849,7 +2854,7 @@ $(function () {
     }
   }
 
-  $(document).on('change', '#mvBranch,#mvProduct,#mvType', function () {
+  $(document).on('change', '#mvProduct,#mvType', function () {
     clearMovementFocus();
     reloadMovements();
   });
@@ -2874,7 +2879,7 @@ $(function () {
 
   function buildDailyMovementUrl() {
     const params = new URLSearchParams();
-    const branchId = $('#dailyMvBranch').val() || (window.currentBranchId ? String(window.currentBranchId) : '');
+    const branchId = window.currentBranchId ? String(window.currentBranchId) : '';
     const productId = $('#dailyMvProduct').val() || '';
     const typeValue = $('#dailyMvType').val() || '';
     const selectedDate = $('#dailyMvDate').val() || todayIso;
@@ -2896,7 +2901,6 @@ $(function () {
       { data: null, defaultContent: '' },
       { data: 'date' },
       { data: 'transaction_id' },
-      { data: 'branch__name' },
       { data: 'product__product_name', render: function (data, type, row) { return data + ' (' + (row['product__brand__name'] || '') + ')'; } },
       { data: 'balance_before', defaultContent: 0 },
       { data: 'quantity' },
@@ -2908,31 +2912,19 @@ $(function () {
       { className: 'control', orderable: false, searchable: false, targets: 0, render: function () { return ''; } },
       { targets: 1, render: function (d) { return d ? moment(d).format('YYYY-MM-DD HH:mm') : ''; } },
       {
-        targets: 3,
-        render: function (d, type, row) {
-          if (row['transaction_type'] === 'BLO') {
-            return row['related_branch__name'] ? d + ' to ' + row['related_branch__name'] : (d || '');
-          }
-          if (row['transaction_type'] === 'BLI') {
-            return row['related_branch__name'] ? d + ' from ' + row['related_branch__name'] : (d || '');
-          }
-          return d || '';
-        }
-      },
-      {
-        targets: 5,
+        targets: 4,
         render: function (d) {
           return '<span class="fw-semibold">' + (d ?? 0) + '</span>';
         }
       },
       {
-        targets: 6,
+        targets: 5,
         render: function (d, type, row) {
           return renderMovementActionMarkup(d, row);
         }
       },
       {
-        targets: 7,
+        targets: 6,
         render: function (d) {
           return '<span class="fw-semibold">' + (d ?? 0) + '</span>';
         }
@@ -2961,12 +2953,11 @@ $(function () {
     dailyMvDt.ajax.url(buildDailyMovementUrl()).load();
   }
 
-  $(document).on('change', '#dailyMvBranch,#dailyMvProduct,#dailyMvType', reloadDailyMovements);
+  $(document).on('change', '#dailyMvProduct,#dailyMvType', reloadDailyMovements);
   $(document).on('change', '#dailyMvDate', function () {
     setTimeout(reloadDailyMovements, 50);
   });
   $(document).on('click', '#dailyMvClearFilters', function () {
-    $('#dailyMvBranch').val('');
     $('#dailyMvProduct').val('');
     $('#dailyMvType').val('');
     $('#dailyMvDate').val(todayIso);

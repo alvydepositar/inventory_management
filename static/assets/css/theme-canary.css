@@ -120,3 +120,135 @@ table.dataTable tbody tr:hover { background-color: #fff9d9; }
 a { color: var(--bs-link-color); }
 a:hover { color: var(--bs-link-hover-color); }
 
+/* Table shells should blend into the surrounding page instead of looking boxed in */
+.table-blend-shell {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.table-blend-shell .card-body {
+  background: transparent;
+  padding: 0 0 1rem;
+}
+
+.table-blend-shell .card-header {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.table-blend-shell .card-datatable {
+  background: transparent;
+}
+
+.report-inline-toolbar {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding-top: 0;
+  padding-bottom: 1rem;
+  justify-content: flex-start;
+}
+
+.report-toolbar-filters {
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.report-toolbar-source {
+  width: auto;
+}
+
+.report-filter-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+.report-filter-field {
+  flex: 0 1 9.5rem;
+  min-width: 8.5rem;
+}
+
+.report-filter-field-wide {
+  flex-basis: 11rem;
+}
+
+.report-filter-actions {
+  flex: 0 0 8.5rem;
+}
+
+.report-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 0.75rem;
+}
+
+.report-toolbar-actions .dt-action-buttons,
+.report-toolbar-actions .dt-buttons {
+  margin: 0;
+}
+
+.report-toolbar-search {
+  min-width: 12rem;
+}
+
+.report-toolbar-search label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.report-toolbar-search input {
+  min-width: 10rem;
+}
+
+@media (min-width: 768px) {
+  .report-inline-toolbar {
+    flex-wrap: nowrap;
+  }
+
+  .report-filter-grid {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .report-toolbar-actions {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .report-filter-actions {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .report-toolbar-filters {
+    display: block;
+  }
+
+  .report-toolbar-search,
+  .report-filter-actions,
+  .report-filter-field,
+  .report-filter-field-wide {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .report-toolbar-search input {
+    min-width: 0;
+  }
+}
+

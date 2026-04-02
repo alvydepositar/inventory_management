@@ -9,7 +9,7 @@ class ProductForm(forms.ModelForm):
             'unit_price': forms.NumberInput(attrs={'step': '0.01'}),
             'low_stock_limit': forms.NumberInput(attrs={'min': 0, 'step': 1}),
         }
-        
+
     def clean_product_id(self):
         product_id = self.cleaned_data.get('product_id')
         if not product_id:
