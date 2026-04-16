@@ -1763,8 +1763,8 @@ function ensureStockHistoryModalTable() {
     columnDefs: [
       {
         targets: 0,
-        render: function (d) {
-          return d ? moment(d).format('YYYY-MM-DD HH:mm') : '';
+        render: function (d, type) {
+          return formatDisplayDateTime(d, type);
         }
       },
       {
@@ -2267,14 +2267,57 @@ function formatPhpAmount(value) {
   });
 }
 
+function formatMomentDisplayValue(value, type, format) {
+  if (!value) return '';
+
+  var renderType = type || 'display';
+  if (renderType !== 'display' && renderType !== 'filter') {
+    return value;
+  }
+
+  var parsed = moment(value);
+  return parsed.isValid() ? parsed.format(format) : value;
+}
+
+function formatDisplayDate(value, type) {
+  return formatMomentDisplayValue(value, type, 'MMM D, YYYY');
+}
+
+function formatDisplayDateTime(value, type) {
+  return formatMomentDisplayValue(value, type, 'MMM D, YYYY h:mm A');
+}
+
+function buildFlatpickrDisplayConfig(overrides) {
+  return Object.assign({
+    altInput: true,
+    altFormat: 'M j, Y',
+    dateFormat: 'Y-m-d'
+  }, overrides || {});
+}
+
+function setFlatpickrInputValue(selector, value) {
+  var element = document.querySelector(selector);
+  if (!element) return;
+
+  if (!element._flatpickr) {
+    $(selector).val(value || '');
+    return;
+  }
+
+  if (value) {
+    element._flatpickr.setDate(value, false, 'Y-m-d');
+    return;
+  }
+
+  element._flatpickr.clear();
+}
+
 function buildReportToolbarDom(includeFilters) {
-  var filterSlot = includeFilters ? '<"report-toolbar-filters">' : '';
   return (
-    '<"card-header report-inline-toolbar d-flex flex-column flex-md-row align-items-md-end gap-3"' +
-    filterSlot +
-    '<"report-toolbar-actions d-flex flex-column flex-md-row align-items-md-end gap-2"<"dt-action-buttons"B><"report-toolbar-search"f>>>' +
+    '<"card-header report-inline-toolbar d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2"' +
+    '<"report-toolbar-actions d-flex flex-column flex-md-row align-items-md-center gap-2"<"dt-action-buttons"B><"report-toolbar-search"f>>>' +
     't' +
-    '<"row align-items-center"<"col-sm-12 col-md-4"l><"col-sm-12 col-md-3"i><"col-sm-12 col-md-5 d-flex justify-content-center justify-content-md-end"p>>'
+    '<"row align-items-center"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7 d-flex justify-content-center justify-content-md-end"p>>'
   );
 }
 
@@ -2347,7 +2390,7 @@ $(function () {
       {
         extend: 'collection',
         className: 'btn btn-label-primary dropdown-toggle me-2',
-        text: '<i class="ti ti-file-export me-sm-1"></i>Export',
+        text: '<i class="ti ti-file-export me-sm-1"></i>Download',
         buttons: [
           { extend: 'csv', className: 'dropdown-item' },
           { extend: 'excel', className: 'dropdown-item' },
@@ -2380,7 +2423,7 @@ $(function () {
       {
         extend: 'collection',
         className: 'btn btn-label-primary dropdown-toggle me-2',
-        text: '<i class="ti ti-file-export me-sm-1"></i>Export',
+        text: '<i class="ti ti-file-export me-sm-1"></i>Download',
         buttons: [
           { extend: 'csv', className: 'dropdown-item' },
           { extend: 'excel', className: 'dropdown-item' },
@@ -2435,7 +2478,7 @@ $(function () {
         orderable: false,
         searchable: false,
         render: function (data, type, row) {
-          return '<button type="button" class="btn btn-sm btn-outline-primary summary-view-log"><i class="ti ti-history me-1"></i>View Log</button>';
+          return '<button type="button" class="btn btn-sm btn-outline-primary summary-view-log"><i class="ti ti-history me-1"></i>View History</button>';
         }
       }
     ],
@@ -2445,7 +2488,7 @@ $(function () {
       {
         extend: 'collection',
         className: 'btn btn-label-primary dropdown-toggle me-2',
-        text: '<i class="ti ti-file-export me-sm-1"></i>Export',
+        text: '<i class="ti ti-file-export me-sm-1"></i>Download',
         buttons: [
           { extend: 'csv', className: 'dropdown-item', exportOptions: { columns: [0, 1, 2, 3, 4, 5, 6, 7] } },
           { extend: 'excel', className: 'dropdown-item', exportOptions: { columns: [0, 1, 2, 3, 4, 5, 6, 7] } },
@@ -2503,7 +2546,7 @@ $(function () {
   if (!salesTableEl.length) return;
 
   if (document.getElementById('salesDateRange')) {
-    flatpickr('#salesDateRange', { mode: 'range', dateFormat: 'Y-m-d' });
+    flatpickr('#salesDateRange', buildFlatpickrDisplayConfig({ mode: 'range' }));
   }
 
   function buildDailySalesUrl() {
@@ -2552,8 +2595,8 @@ $(function () {
     columnDefs: [
       {
         targets: 0,
-        render: function (d) {
-          return d ? moment(d).format('YYYY-MM-DD') : '';
+        render: function (d, type) {
+          return formatDisplayDate(d, type);
         }
       },
       {
@@ -2567,7 +2610,7 @@ $(function () {
         orderable: false,
         searchable: false,
         render: function (data, type, row) {
-          return '<button type="button" class="btn btn-sm btn-outline-primary sales-view-log"><i class="ti ti-history me-1"></i>View Log</button>';
+          return '<button type="button" class="btn btn-sm btn-outline-primary sales-view-log"><i class="ti ti-history me-1"></i>View History</button>';
         }
       }
     ],
@@ -2577,7 +2620,7 @@ $(function () {
       {
         extend: 'collection',
         className: 'btn btn-label-primary dropdown-toggle me-2',
-        text: '<i class="ti ti-file-export me-sm-1"></i>Export',
+        text: '<i class="ti ti-file-export me-sm-1"></i>Download',
         buttons: [
           { extend: 'csv', className: 'dropdown-item', exportOptions: { columns: [0, 1, 2, 3, 4, 5, 6] } },
           { extend: 'excel', className: 'dropdown-item', exportOptions: { columns: [0, 1, 2, 3, 4, 5, 6] } },
@@ -2607,7 +2650,7 @@ $(function () {
       typeValue: 'OUT',
       dateFrom: data.sale_date,
       dateTo: data.sale_date,
-      subtitle: data.product_name + ' in ' + data.branch_name + ' on ' + data.sale_date
+      subtitle: data.product_name + ' in ' + data.branch_name + ' on ' + formatDisplayDate(data.sale_date)
     });
   });
 
@@ -2622,7 +2665,7 @@ $(function () {
   $(document).on('click', '#salesClearFilters', function () {
     $('#salesBranch').val('');
     $('#salesProduct').val('');
-    $('#salesDateRange').val('');
+    setFlatpickrInputValue('#salesDateRange', '');
     reloadDailySales();
   });
 
@@ -2637,7 +2680,7 @@ $(function () {
   if (!transferTableEl.length) return;
 
   if (document.getElementById('transferDateRange')) {
-    flatpickr('#transferDateRange', { mode: 'range', dateFormat: 'Y-m-d' });
+    flatpickr('#transferDateRange', buildFlatpickrDisplayConfig({ mode: 'range' }));
   }
 
   function buildTransferReportUrl() {
@@ -2688,8 +2731,8 @@ $(function () {
     columnDefs: [
       {
         targets: 0,
-        render: function (d) {
-          return d ? moment(d).format('YYYY-MM-DD HH:mm') : '';
+        render: function (d, type) {
+          return formatDisplayDateTime(d, type);
         }
       },
       {
@@ -2698,9 +2741,9 @@ $(function () {
         searchable: false,
         render: function (data, type, row) {
           if (!row.transaction_group_id) {
-            return '<button type="button" class="btn btn-sm btn-outline-primary" disabled><i class="ti ti-history me-1"></i>View Log</button>';
+            return '<button type="button" class="btn btn-sm btn-outline-primary" disabled><i class="ti ti-history me-1"></i>View History</button>';
           }
-          return '<button type="button" class="btn btn-sm btn-outline-primary transfer-view-log"><i class="ti ti-history me-1"></i>View Log</button>';
+          return '<button type="button" class="btn btn-sm btn-outline-primary transfer-view-log"><i class="ti ti-history me-1"></i>View History</button>';
         }
       }
     ],
@@ -2710,7 +2753,7 @@ $(function () {
       {
         extend: 'collection',
         className: 'btn btn-label-primary dropdown-toggle me-2',
-        text: '<i class="ti ti-file-export me-sm-1"></i>Export',
+        text: '<i class="ti ti-file-export me-sm-1"></i>Download',
         buttons: [
           { extend: 'csv', className: 'dropdown-item', exportOptions: { columns: [0, 1, 2, 3, 4, 5, 6] } },
           { extend: 'excel', className: 'dropdown-item', exportOptions: { columns: [0, 1, 2, 3, 4, 5, 6] } },
@@ -2751,7 +2794,7 @@ $(function () {
   $(document).on('click', '#transferClearFilters', function () {
     $('#transferBranch').val('');
     $('#transferProduct').val('');
-    $('#transferDateRange').val('');
+    setFlatpickrInputValue('#transferDateRange', '');
     reloadTransferReports();
   });
 
@@ -2767,7 +2810,7 @@ $(function () {
 
   // Initialize date range picker
   if (document.getElementById('mvDateRange')) {
-    flatpickr('#mvDateRange', { mode: 'range', dateFormat: 'Y-m-d' });
+    flatpickr('#mvDateRange', buildFlatpickrDisplayConfig({ mode: 'range' }));
   }
 
   function buildMovementUrl() {
@@ -2807,7 +2850,7 @@ $(function () {
     ],
     columnDefs: [
       { className: 'control', orderable: false, searchable: false, targets: 0, render: function () { return ''; } },
-      { targets: 1, render: function (d) { return d ? moment(d).format('YYYY-MM-DD HH:mm') : ''; } },
+      { targets: 1, render: function (d, type) { return formatDisplayDateTime(d, type); } },
       {
         targets: 4,
         render: function (d) {
@@ -2871,9 +2914,9 @@ $(function () {
 
   const todayIso = moment().format('YYYY-MM-DD');
   if (document.getElementById('dailyMvDate')) {
-    flatpickr('#dailyMvDate', { dateFormat: 'Y-m-d' });
+    flatpickr('#dailyMvDate', buildFlatpickrDisplayConfig());
     if (!$('#dailyMvDate').val()) {
-      $('#dailyMvDate').val(todayIso);
+      setFlatpickrInputValue('#dailyMvDate', todayIso);
     }
   }
 
@@ -2910,7 +2953,7 @@ $(function () {
     ],
     columnDefs: [
       { className: 'control', orderable: false, searchable: false, targets: 0, render: function () { return ''; } },
-      { targets: 1, render: function (d) { return d ? moment(d).format('YYYY-MM-DD HH:mm') : ''; } },
+      { targets: 1, render: function (d, type) { return formatDisplayDateTime(d, type); } },
       {
         targets: 4,
         render: function (d) {
@@ -2960,11 +3003,11 @@ $(function () {
   $(document).on('click', '#dailyMvClearFilters', function () {
     $('#dailyMvProduct').val('');
     $('#dailyMvType').val('');
-    $('#dailyMvDate').val(todayIso);
+    setFlatpickrInputValue('#dailyMvDate', todayIso);
     reloadDailyMovements();
   });
 });
-$(document).on('shown.bs.tab', '#stocksWorkspaceTabs [data-bs-toggle="tab"], #reportsWorkspaceTabs [data-bs-toggle="tab"]', function () {
+$(document).on('shown.bs.tab shown.bs.collapse', '#stocksWorkspaceTabs [data-bs-toggle="tab"], #reportsWorkspaceTabs [data-bs-toggle="tab"], .report-detail-accordion .accordion-collapse', function () {
   setTimeout(function () {
     if ($.fn.dataTable) {
       $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust();

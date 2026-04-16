@@ -16,6 +16,14 @@ from django.contrib.auth import authenticate, login as django_login, logout as d
 from django.contrib.auth.decorators import login_required
 
 def login_view(request):
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    if request.user.is_authenticated:
+        next_url = request.GET.get('next')
+        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+            return redirect(next_url)
+        return redirect('dashboard')
+
     if request.method == 'POST':
         identifier = request.POST.get('username') or ''
         password = request.POST.get('password') or ''
@@ -57,10 +65,9 @@ def login_view(request):
                 request.session['user_role'] = app_user.user_role
             # Redirect to next if it's a safe local URL
             next_url = request.POST.get('next') or request.GET.get('next')
-            from django.utils.http import url_has_allowed_host_and_scheme
             if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
                 return redirect(next_url)
-            return redirect('product_catalogue')
+            return redirect('dashboard')
         return render(request, 'html/auth-login.html', {'error': 'Invalid credentials'})
     return render(request, 'html/auth-login.html')
 
@@ -405,6 +412,58 @@ def branch_data(request):
     data = list(branches)
     return JsonResponse({'data': data})
 
+def _branch_inventory_summary_queryset():
+    active_stock_filter = Q(stocklevel__is_active=True)
+    return Branches.objects.all().order_by('name').annotate(
+        tracked_products_count=Count(
+            'stocklevel',
+            filter=active_stock_filter,
+            distinct=True,
+        ),
+        low_stock_count=Count(
+            'stocklevel',
+            filter=active_stock_filter & Q(stocklevel__quantity__lte=F('stocklevel__product__low_stock_limit')),
+            distinct=True,
+        ),
+        total_quantity=Coalesce(
+            Sum('stocklevel__quantity', filter=active_stock_filter),
+            Value(0),
+        ),
+    )
+
+DASHBOARD_LOW_STOCK_PREVIEW_LIMIT = 5
+
+def _attach_branch_low_stock_items(branches_list, preview_limit=None):
+    branch_lookup = {branch.id: branch for branch in branches_list}
+    for branch in branches_list:
+        branch.low_stock_items = []
+        branch.remaining_low_stock_items = 0
+
+    low_stock_items = (
+        StockLevel.objects.filter(
+            is_active=True,
+            branch__isnull=False,
+            product__isnull=False,
+            quantity__lte=F('product__low_stock_limit'),
+        )
+        .select_related('branch', 'product', 'product__brand')
+        .order_by('branch__name', 'product__product_name')
+    )
+
+    for stock_item in low_stock_items:
+        stock_item.short_by = max((stock_item.product.low_stock_limit or 0) - stock_item.quantity, 0)
+        branch = branch_lookup.get(stock_item.branch_id)
+        if branch is not None:
+            branch.low_stock_items.append(stock_item)
+
+    for branch in branches_list:
+        branch.low_stock_items.sort(key=lambda stock_item: (-stock_item.short_by, stock_item.product.product_name.lower()))
+        if preview_limit is not None:
+            branch.remaining_low_stock_items = max(len(branch.low_stock_items) - preview_limit, 0)
+            branch.low_stock_items = branch.low_stock_items[:preview_limit]
+
+    return branches_list
+
 @login_required
 def manage_stocks(request, branch_id=None, stock_id=None):
     # Support query param for branch_id as well
@@ -416,22 +475,7 @@ def manage_stocks(request, branch_id=None, stock_id=None):
             except ValueError:
                 branch_id = None
     branch = None
-    branches_list = Branches.objects.all().order_by('name').annotate(
-        tracked_products_count=Count(
-            'stocklevel',
-            filter=Q(stocklevel__is_active=True),
-            distinct=True,
-        ),
-        low_stock_count=Count(
-            'stocklevel',
-            filter=Q(stocklevel__is_active=True, stocklevel__quantity__lte=F('stocklevel__product__low_stock_limit')),
-            distinct=True,
-        ),
-        total_quantity=Coalesce(
-            Sum('stocklevel__quantity', filter=Q(stocklevel__is_active=True)),
-            Value(0),
-        ),
-    )
+    branches_list = _branch_inventory_summary_queryset()
     products = Products.objects.all().select_related('brand')
     if branch_id:
         branch = get_object_or_404(Branches, pk=branch_id)
@@ -529,18 +573,27 @@ def daily_sales_report(request):
 
 @login_required
 def dashboard(request):
-    low_stock_qs = StockLevel.objects.filter(quantity__lte=F('product__low_stock_limit'))
+    active_stock_qs = StockLevel.objects.filter(is_active=True)
+    low_stock_qs = active_stock_qs.filter(quantity__lte=F('product__low_stock_limit'))
+    branches_list = list(_branch_inventory_summary_queryset())
+    _attach_branch_low_stock_items(branches_list, preview_limit=DASHBOARD_LOW_STOCK_PREVIEW_LIMIT)
     counts = {
+        'branches': len(branches_list),
         'products': Products.objects.count(),
-        'categories': Categories.objects.count(),
-        'brands': Brands.objects.count(),
-        'suppliers': Suppliers.objects.count(),
-        'branches': Branches.objects.count(),
-        'stock_items': StockLevel.objects.count(),
-        'total_quantity': StockLevel.objects.aggregate(total=models.Sum('quantity'))['total'] or 0,
+        'stock_items': active_stock_qs.count(),
+        'total_quantity': active_stock_qs.aggregate(total=Sum('quantity'))['total'] or 0,
+        'branches_with_low_stock': sum(1 for branch in branches_list if branch.low_stock_count),
         'low_stock': low_stock_qs.count(),
     }
-    return render(request, 'html/dashboard.html', {'counts': counts})
+    return render(
+        request,
+        'html/dashboard.html',
+        {
+            'counts': counts,
+            'branches': branches_list,
+            'dashboard_low_stock_preview_limit': DASHBOARD_LOW_STOCK_PREVIEW_LIMIT,
+        },
+    )
 
 def _parse_date_param(s, end=False):
     if not s:
