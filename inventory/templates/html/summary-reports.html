@@ -1,22 +1,47 @@
 {% extends 'html/base.html' %}
 
-{% block title %}Reports{% endblock %}
+{% block title %}All Branches View{% endblock %}
 
 {% block content %}
 <div class="content-wrapper">
   <div class="container-xxl flex-grow-1 container-p-y">
     <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
       <div>
-        <h4 class="fw-bold m-0">Reports</h4>
-        <div class="text-muted">Choose a report, apply a few filters, and download the result when needed.</div>
+        <h4 class="fw-bold m-0">Stocks</h4>
+        <div class="text-muted">Manage stocks, daily sales, and transfers across all branches from one workspace.</div>
       </div>
-      <a class="btn btn-outline-primary" href="{% url 'manage_stocks' %}">
-        <i class="ti ti-clipboard me-1"></i> Open Stocks
+    </div>
+
+    <div class="d-flex align-items-center gap-2 mb-4">
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'manage_stocks' %}" aria-label="Back to branch workspaces">
+        <i class="ti ti-arrow-left"></i>
       </a>
+      <div><span class="text-muted small">Back to branch workspaces</span></div>
+    </div>
+
+    <div class="row g-3 mb-4">
+      <div class="col-12 col-md-6">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="text-muted">Daily Sales</div>
+            <div class="fs-4 fw-semibold">PHP {{ all_daily_sales_value|floatformat:2 }}</div>
+            <div class="small text-muted">{{ all_daily_sales_quantity }} item{{ all_daily_sales_quantity|pluralize }} released today</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="text-muted">Total Sales</div>
+            <div class="fs-4 fw-semibold">PHP {{ all_total_sales_value|floatformat:2 }}</div>
+            <div class="small text-muted">{{ all_total_sales_quantity }} item{{ all_total_sales_quantity|pluralize }} released overall</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="mb-4">
-      <div class="text-muted small text-uppercase mb-2">Choose A Report</div>
+      <div class="text-muted small text-uppercase mb-2">All Branches Workspace</div>
       <ul class="nav row g-3 list-unstyled mb-0" id="reportsWorkspaceTabs" role="tablist">
         <li class="nav-item col-12 col-lg-4" role="presentation">
           <a class="nav-link report-choice-card {% if reports_section == 'current-summary' %}active{% endif %}" id="reports-current-summary-tab" data-bs-toggle="tab" href="#reports-current-summary" role="tab" aria-controls="reports-current-summary" aria-selected="{% if reports_section == 'current-summary' %}true{% else %}false{% endif %}">
@@ -46,8 +71,8 @@
       <div class="tab-pane fade {% if reports_section == 'current-summary' %}show active{% endif %}" id="reports-current-summary" role="tabpanel" aria-labelledby="reports-current-summary-tab" tabindex="0">
         <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
           <div>
-            <h5 class="fw-semibold mb-1">Stocks on Hand</h5>
-            <div class="text-muted">Start with the product list below. Open more details only when you need totals by brand or category.</div>
+            <h5 class="fw-semibold mb-1">All Branches Stocks On Hand</h5>
+            <div class="text-muted">Review balances and overall stock health across all branches.</div>
           </div>
         </div>
 
@@ -189,7 +214,7 @@
       <div class="tab-pane fade {% if reports_section == 'daily-stock-out' %}show active{% endif %}" id="reports-daily-stock-out" role="tabpanel" aria-labelledby="reports-daily-stock-out-tab" tabindex="0">
         <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
           <div>
-            <h5 class="fw-semibold mb-1">Daily Sales</h5>
+            <h5 class="fw-semibold mb-1">All Branches Daily Sales</h5>
             <div class="text-muted">This report is based on released stock transactions recorded in the system.</div>
           </div>
         </div>
@@ -295,7 +320,7 @@
       <div class="tab-pane fade {% if reports_section == 'transfers' %}show active{% endif %}" id="reports-transfers" role="tabpanel" aria-labelledby="reports-transfers-tab" tabindex="0">
         <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
           <div>
-            <h5 class="fw-semibold mb-1">Branch Transfers</h5>
+            <h5 class="fw-semibold mb-1">All Branches Transfers</h5>
             <div class="text-muted">Review items that were moved from one branch to another.</div>
           </div>
         </div>

@@ -24,12 +24,6 @@
         <div data-i18n="Dashboards">Dashboard</div>
       </a>
     </li>
-    <li class="menu-item {% if request.path == '/account/' %}active{% endif %}">
-      <a href="{% url 'account' %}" class="menu-link">
-        <i class="menu-icon tf-icons ti ti-layout-sidebar"></i>
-        <div data-i18n="Account">Account</div>
-      </a>
-    </li>
 
     <li class="menu-header small text-uppercase">
       <span class="menu-header-text">Administrator</span>
@@ -64,16 +58,6 @@
           </li>
         {% endfor %}
       </ul>
-    </li>
-
-    <li class="menu-header small text-uppercase">
-      <span class="menu-header-text">Reports</span>
-    </li>
-    <li class="menu-item {% if 'summary-reports' in request.path or 'daily-sales-report' in request.path %}active{% endif %}">
-      <a href="{% url 'summary_reports' %}" class="menu-link">
-        <i class="menu-icon tf-icons ti ti-report-search"></i>
-        <div data-i18n="Reports">Reports</div>
-      </a>
     </li>
 
     <li class="menu-header small text-uppercase">

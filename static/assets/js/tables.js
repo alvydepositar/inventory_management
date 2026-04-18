@@ -1944,6 +1944,17 @@ if (document.getElementById('stockModal')) {
       lengthMenu: [7, 10, 25, 50, 75, 100],
       buttons: [
         {
+          extend: 'collection',
+          className: 'btn btn-label-primary dropdown-toggle me-2',
+          text: '<i class="ti ti-file-export me-sm-1"></i>Download',
+          buttons: [
+            { extend: 'csv', className: 'dropdown-item', exportOptions: { columns: [2, 3, 4, 5, 6] } },
+            { extend: 'excel', className: 'dropdown-item', exportOptions: { columns: [2, 3, 4, 5, 6] } },
+            { extend: 'pdf', className: 'dropdown-item', exportOptions: { columns: [2, 3, 4, 5, 6] } },
+            { extend: 'copy', className: 'dropdown-item', exportOptions: { columns: [2, 3, 4, 5, 6] } }
+          ]
+        },
+        {
           text: '<i class="ti ti-plus me-sm-1"></i> <span class="d-none d-sm-inline-block">Record Stock Action</span>',
           className: 'create-new btn btn-primary',
           attr: {
