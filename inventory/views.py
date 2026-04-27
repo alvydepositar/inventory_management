@@ -16,6 +16,14 @@ from django.contrib.auth import authenticate, login as django_login, logout as d
 from django.contrib.auth.decorators import login_required
 
 def login_view(request):
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    if request.user.is_authenticated:
+        next_url = request.GET.get('next')
+        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+            return redirect(next_url)
+        return redirect('dashboard')
+
     if request.method == 'POST':
         identifier = request.POST.get('username') or ''
         password = request.POST.get('password') or ''
@@ -57,10 +65,9 @@ def login_view(request):
                 request.session['user_role'] = app_user.user_role
             # Redirect to next if it's a safe local URL
             next_url = request.POST.get('next') or request.GET.get('next')
-            from django.utils.http import url_has_allowed_host_and_scheme
             if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
                 return redirect(next_url)
-            return redirect('product_catalogue')
+            return redirect('dashboard')
         return render(request, 'html/auth-login.html', {'error': 'Invalid credentials'})
     return render(request, 'html/auth-login.html')
 
@@ -405,6 +412,111 @@ def branch_data(request):
     data = list(branches)
     return JsonResponse({'data': data})
 
+def _branch_inventory_summary_queryset():
+    active_stock_filter = Q(stocklevel__is_active=True)
+    return Branches.objects.all().order_by('name').annotate(
+        tracked_products_count=Count(
+            'stocklevel',
+            filter=active_stock_filter,
+            distinct=True,
+        ),
+        low_stock_count=Count(
+            'stocklevel',
+            filter=active_stock_filter & Q(stocklevel__quantity__lte=F('stocklevel__product__low_stock_limit')),
+            distinct=True,
+        ),
+        total_quantity=Coalesce(
+            Sum('stocklevel__quantity', filter=active_stock_filter),
+            Value(0),
+        ),
+    )
+
+DASHBOARD_LOW_STOCK_PREVIEW_LIMIT = 5
+
+def _attach_branch_low_stock_items(branches_list, preview_limit=None):
+    branch_lookup = {branch.id: branch for branch in branches_list}
+    for branch in branches_list:
+        branch.low_stock_items = []
+        branch.remaining_low_stock_items = 0
+
+    low_stock_items = (
+        StockLevel.objects.filter(
+            is_active=True,
+            branch__isnull=False,
+            product__isnull=False,
+            quantity__lte=F('product__low_stock_limit'),
+        )
+        .select_related('branch', 'product', 'product__brand')
+        .order_by('branch__name', 'product__product_name')
+    )
+
+    for stock_item in low_stock_items:
+        stock_item.short_by = max((stock_item.product.low_stock_limit or 0) - stock_item.quantity, 0)
+        branch = branch_lookup.get(stock_item.branch_id)
+        if branch is not None:
+            branch.low_stock_items.append(stock_item)
+
+    for branch in branches_list:
+        branch.low_stock_items.sort(key=lambda stock_item: (-stock_item.short_by, stock_item.product.product_name.lower()))
+        if preview_limit is not None:
+            branch.remaining_low_stock_items = max(len(branch.low_stock_items) - preview_limit, 0)
+            branch.low_stock_items = branch.low_stock_items[:preview_limit]
+
+    return branches_list
+
+def _attach_branch_sales_metrics(branches_list, day=None):
+    if not branches_list:
+        return branches_list
+
+    for branch in branches_list:
+        branch.daily_sales_quantity = 0
+        branch.total_sales_quantity = 0
+        branch.daily_sales_value = 0
+        branch.total_sales_value = 0
+
+    branch_ids = [branch.id for branch in branches_list if branch.id]
+    if not branch_ids:
+        return branches_list
+
+    target_day = day or timezone.localdate()
+    tz = timezone.get_current_timezone()
+    day_start = timezone.make_aware(datetime.combine(target_day, dt_time.min), tz)
+    day_end = timezone.make_aware(datetime.combine(target_day, dt_time.max), tz)
+
+    value_expr = ExpressionWrapper(
+        F('quantity') * F('product__unit_price'),
+        output_field=DecimalField(max_digits=14, decimal_places=2),
+    )
+    zero_decimal = Value(0, output_field=DecimalField(max_digits=14, decimal_places=2))
+
+    sales_rows = StockMovement.objects.filter(
+        transaction_type='OUT',
+        branch_id__in=branch_ids,
+    ).values('branch_id').annotate(
+        daily_sales_quantity=Coalesce(
+            Sum('quantity', filter=Q(date__gte=day_start, date__lte=day_end)),
+            0,
+        ),
+        total_sales_quantity=Coalesce(Sum('quantity'), 0),
+        daily_sales_value=Coalesce(
+            Sum(value_expr, filter=Q(date__gte=day_start, date__lte=day_end)),
+            zero_decimal,
+        ),
+        total_sales_value=Coalesce(Sum(value_expr), zero_decimal),
+    )
+
+    sales_lookup = {row['branch_id']: row for row in sales_rows}
+    for branch in branches_list:
+        row = sales_lookup.get(branch.id)
+        if not row:
+            continue
+        branch.daily_sales_quantity = row.get('daily_sales_quantity') or 0
+        branch.total_sales_quantity = row.get('total_sales_quantity') or 0
+        branch.daily_sales_value = row.get('daily_sales_value') or 0
+        branch.total_sales_value = row.get('total_sales_value') or 0
+
+    return branches_list
+
 @login_required
 def manage_stocks(request, branch_id=None, stock_id=None):
     # Support query param for branch_id as well
@@ -416,25 +528,13 @@ def manage_stocks(request, branch_id=None, stock_id=None):
             except ValueError:
                 branch_id = None
     branch = None
-    branches_list = Branches.objects.all().order_by('name').annotate(
-        tracked_products_count=Count(
-            'stocklevel',
-            filter=Q(stocklevel__is_active=True),
-            distinct=True,
-        ),
-        low_stock_count=Count(
-            'stocklevel',
-            filter=Q(stocklevel__is_active=True, stocklevel__quantity__lte=F('stocklevel__product__low_stock_limit')),
-            distinct=True,
-        ),
-        total_quantity=Coalesce(
-            Sum('stocklevel__quantity', filter=Q(stocklevel__is_active=True)),
-            Value(0),
-        ),
-    )
+    branches_list = list(_branch_inventory_summary_queryset())
+    _attach_branch_sales_metrics(branches_list)
+    branch_summary = None
     products = Products.objects.all().select_related('brand')
     if branch_id:
         branch = get_object_or_404(Branches, pk=branch_id)
+        branch_summary = next((branch_item for branch_item in branches_list if branch_item.id == branch.id), None)
         stocks = StockLevel.objects.filter(branch=branch).select_related('product', 'product__brand')
     else:
         stocks = StockLevel.objects.none()
@@ -472,8 +572,12 @@ def manage_stocks(request, branch_id=None, stock_id=None):
         'selected_date_from': request.GET.get('date_from', ''),
         'selected_date_to': request.GET.get('date_to', ''),
         'selected_txn_group_id': request.GET.get('group_id', ''),
-        'stocks_section': request.GET.get('stocks_section', 'current-stocks'),
+        'stocks_section': request.GET.get('stocks_section', 'stocks-on-hand'),
         'selected_daily_date': request.GET.get('daily_date', timezone.localdate().isoformat()),
+        'branch_daily_sales_quantity': getattr(branch_summary, 'daily_sales_quantity', 0),
+        'branch_total_sales_quantity': getattr(branch_summary, 'total_sales_quantity', 0),
+        'branch_daily_sales_value': getattr(branch_summary, 'daily_sales_value', 0),
+        'branch_total_sales_value': getattr(branch_summary, 'total_sales_value', 0),
     }
 
     return render(request, 'html/manage-stocks.html', context)
@@ -486,23 +590,92 @@ def stock_history(request):
     query = params.urlencode()
     if query:
         url = f'{url}?{query}'
-    return redirect(f'{url}#stocks-transaction-log')
+    if params.get('branch_id'):
+        return redirect(f'{url}#stocks-transaction-log')
+    return redirect(url)
 
 @login_required
 def low_stock_alerts(request):
     params = request.GET.copy()
-    params['stocks_section'] = 'low-stock'
+    branch_id = params.get('branch_id')
+
+    if branch_id:
+        params['stocks_section'] = 'low-stock'
+        url = reverse('manage_stocks')
+        query = params.urlencode()
+        if query:
+            url = f'{url}?{query}'
+        return redirect(f'{url}#stocks-low-stock')
+
+    params.pop('stocks_section', None)
     url = reverse('manage_stocks')
     query = params.urlencode()
     if query:
         url = f'{url}?{query}'
-    return redirect(f'{url}#stocks-low-stock')
+    return redirect(url)
 
 @login_required
 def summary_reports(request):
-    branches_list = Branches.objects.all()
-    products = Products.objects.all().select_related('brand')
+    params = request.GET.copy()
+    reports_section = params.get('reports_section', 'current-summary')
+    branch_id = params.get('branch_id')
+
+    if branch_id:
+        section_map = {
+            'current-summary': 'stocks-on-hand',
+            'daily-stock-out': 'daily-sales',
+            'transfers': 'branch-transfers',
+        }
+        stocks_section = section_map.get(reports_section, 'stocks-on-hand')
+        params['stocks_section'] = stocks_section
+        params.pop('reports_section', None)
+
+        url = reverse('manage_stocks')
+        query = params.urlencode()
+        if query:
+            url = f'{url}?{query}'
+
+        anchor_map = {
+            'stocks-on-hand': '#stocks-on-hand',
+            'daily-sales': '#stocks-daily-sales',
+            'branch-transfers': '#stocks-branch-transfers',
+        }
+        return redirect(f"{url}{anchor_map.get(stocks_section, '#stocks-on-hand')}")
+
+    url = reverse('all_branches_view')
+    query = params.urlencode()
+    if query:
+        url = f'{url}?{query}'
+    return redirect(url)
+
+@login_required
+def all_branches_view(request):
+    branches_list = Branches.objects.all().order_by('name')
+    products = Products.objects.all().select_related('brand').order_by('product_name')
     selected_branch_id = request.GET.get('branch_id', '')
+    today = timezone.localdate()
+    tz = timezone.get_current_timezone()
+    day_start = timezone.make_aware(datetime.combine(today, dt_time.min), tz)
+    day_end = timezone.make_aware(datetime.combine(today, dt_time.max), tz)
+
+    value_expr = ExpressionWrapper(
+        F('quantity') * F('product__unit_price'),
+        output_field=DecimalField(max_digits=14, decimal_places=2),
+    )
+    zero_decimal = Value(0, output_field=DecimalField(max_digits=14, decimal_places=2))
+    sales_totals = StockMovement.objects.filter(transaction_type='OUT').aggregate(
+        daily_sales_quantity=Coalesce(
+            Sum('quantity', filter=Q(date__gte=day_start, date__lte=day_end)),
+            0,
+        ),
+        total_sales_quantity=Coalesce(Sum('quantity'), 0),
+        daily_sales_value=Coalesce(
+            Sum(value_expr, filter=Q(date__gte=day_start, date__lte=day_end)),
+            zero_decimal,
+        ),
+        total_sales_value=Coalesce(Sum(value_expr), zero_decimal),
+    )
+
     return render(
         request,
         'html/summary-reports.html',
@@ -514,6 +687,10 @@ def summary_reports(request):
             'selected_date_from': request.GET.get('date_from', ''),
             'selected_date_to': request.GET.get('date_to', ''),
             'reports_section': request.GET.get('reports_section', 'current-summary'),
+            'all_daily_sales_quantity': sales_totals.get('daily_sales_quantity') or 0,
+            'all_total_sales_quantity': sales_totals.get('total_sales_quantity') or 0,
+            'all_daily_sales_value': sales_totals.get('daily_sales_value') or 0,
+            'all_total_sales_value': sales_totals.get('total_sales_value') or 0,
         },
     )
 
@@ -521,26 +698,35 @@ def summary_reports(request):
 def daily_sales_report(request):
     params = request.GET.copy()
     params['reports_section'] = 'daily-stock-out'
-    url = reverse('summary_reports')
+    url = reverse('all_branches_view')
     query = params.urlencode()
     if query:
         url = f'{url}?{query}'
-    return redirect(f'{url}#reports-daily-stock-out')
+    return redirect(url)
 
 @login_required
 def dashboard(request):
-    low_stock_qs = StockLevel.objects.filter(quantity__lte=F('product__low_stock_limit'))
+    active_stock_qs = StockLevel.objects.filter(is_active=True)
+    low_stock_qs = active_stock_qs.filter(quantity__lte=F('product__low_stock_limit'))
+    branches_list = list(_branch_inventory_summary_queryset())
+    _attach_branch_low_stock_items(branches_list, preview_limit=DASHBOARD_LOW_STOCK_PREVIEW_LIMIT)
     counts = {
+        'branches': len(branches_list),
         'products': Products.objects.count(),
-        'categories': Categories.objects.count(),
-        'brands': Brands.objects.count(),
-        'suppliers': Suppliers.objects.count(),
-        'branches': Branches.objects.count(),
-        'stock_items': StockLevel.objects.count(),
-        'total_quantity': StockLevel.objects.aggregate(total=models.Sum('quantity'))['total'] or 0,
+        'stock_items': active_stock_qs.count(),
+        'total_quantity': active_stock_qs.aggregate(total=Sum('quantity'))['total'] or 0,
+        'branches_with_low_stock': sum(1 for branch in branches_list if branch.low_stock_count),
         'low_stock': low_stock_qs.count(),
     }
-    return render(request, 'html/dashboard.html', {'counts': counts})
+    return render(
+        request,
+        'html/dashboard.html',
+        {
+            'counts': counts,
+            'branches': branches_list,
+            'dashboard_low_stock_preview_limit': DASHBOARD_LOW_STOCK_PREVIEW_LIMIT,
+        },
+    )
 
 def _parse_date_param(s, end=False):
     if not s:

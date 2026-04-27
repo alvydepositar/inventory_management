@@ -63,6 +63,7 @@ urlpatterns = [
 
     # New pages
     path('low-stock-alerts/', views.low_stock_alerts, name='low_stock_alerts'),
+    path('all-branches-view/', views.all_branches_view, name='all_branches_view'),
     path('summary-reports/', views.summary_reports, name='summary_reports'),
     path('daily-sales-report/', views.daily_sales_report, name='daily_sales_report'),
     path('stock-history/', views.stock_history, name='stock_history'),
