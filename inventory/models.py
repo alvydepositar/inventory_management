@@ -74,6 +74,11 @@ class Branches(models.Model):
     def __str__(self):
         return self.name
     
+class ActiveStockLevelManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(is_active=True)
+
+
 class StockLevel(models.Model):
     id = models.AutoField(primary_key=True)
     branch = models.ForeignKey(Branches, on_delete=models.SET_NULL, null=True)
@@ -82,12 +87,15 @@ class StockLevel(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
+    objects = ActiveStockLevelManager()
+    all_objects = models.Manager()
 
     class Meta:
-        unique_together = ('branch', 'product')
+        unique_together = ('branch', 'product', 'is_active')
         indexes = [
             models.Index(fields=['branch']),
             models.Index(fields=['product']),
+            models.Index(fields=['is_active']),
         ]
 
     def __str__(self):

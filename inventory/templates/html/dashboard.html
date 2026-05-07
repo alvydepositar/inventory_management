@@ -91,6 +91,12 @@
           </div>
         </a>
       </div>
+      {% empty %}
+      <div class="col-12">
+        <div class="alert alert-secondary mb-0">No stock data found for the selected filters.</div>
+      </div>
+      {% endfor %}
+      {% endwith %}
     </div>
 
     <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">

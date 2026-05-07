@@ -26,9 +26,10 @@ SECRET_KEY = 'django-insecure-&+4jvcbs=ja3)30v$)#zw&xvxb-f+(lo2^_bavxgwa#sp#fafo
 DEBUG = True
 
 ALLOWED_HOSTS = [
-    'https://8ghsd5f7-8000.asse.devtunnels.ms/',
+    '8ghsd5f7-8000.asse.devtunnels.ms',
     'localhost',
     '127.0.0.1',
+    'alvydepositar.pythonanywhere.com',
 ]
 
 
@@ -145,6 +146,8 @@ STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
 
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
@@ -152,7 +155,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Authentication redirects
 LOGIN_URL = '/'
-LOGIN_REDIRECT_URL = '/product-catalogue/'
+LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/'
 
 # Authentication backends (email or username)
@@ -167,7 +170,7 @@ AUTHENTICATION_BACKENDS = [
 CSRF_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
-SESSION_COOKIE_SECURE = False  # Set True in production (HTTPS)
-CSRF_COOKIE_SECURE = False     # Set True in production (HTTPS)
-# SECURE_SSL_REDIRECT = True   # Enable in production with HTTPS
+SESSION_COOKIE_SECURE = True  # Set True in production (HTTPS)
+CSRF_COOKIE_SECURE = True     # Set True in production (HTTPS)
+SECURE_SSL_REDIRECT = True   # Enable in production with HTTPS
 X_FRAME_OPTIONS = 'DENY'

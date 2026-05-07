@@ -5,6 +5,12 @@
 {% block content %}
 <div class="content-wrapper">
   <div class="container-xxl flex-grow-1 container-p-y">
+    <style>
+      .scrollable-select {
+        max-height: 220px;
+        overflow-y: auto;
+      }
+    </style>
     {% if branch %}
     <script>window.currentBranchId={{ branch.id }};</script>
     {% else %}
@@ -503,7 +509,7 @@
             </table>
           </div>
         </div>
-      </div>
+      </form>
     </div>
     {% else %}
     <div class="card mb-4">

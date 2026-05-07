@@ -22,3 +22,8 @@ urlpatterns = [
     path('', include('inventory.urls')),  # Add this line to include the inventory app's URLs
 
 ]
+
+# Error handlers
+handler404 = 'inventory.views.error_404'
+handler500 = 'inventory.views.error_500'
+handler403 = 'inventory.views.error_403'

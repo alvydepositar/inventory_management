@@ -27,6 +27,12 @@ if (document.getElementById('userModal')) {
         errorContainer.innerHTML = '';
       }
     });
+    const roleSelect = document.querySelector('#userForm select[name="user_role"]');
+    const branchSelect = document.querySelector('#userForm select[name="assigned_branch"]');
+    const activeCheckbox = document.querySelector('#userForm input[name="is_active"]');
+    if (roleSelect) roleSelect.value = '';
+    if (branchSelect) branchSelect.value = '';
+    if (activeCheckbox) activeCheckbox.checked = true;
   });
   $(function () {
     usersModalInstance = new bootstrap.Modal(document.getElementById('userModal'));
@@ -2117,6 +2123,41 @@ if (document.getElementById('stockModal')) {
   });
 
   // Deleting stock levels is not supported from the aggregate table; movements can be edited/deleted separately if needed.
+  // Delete stock level (soft delete with balancing movement)
+  $('.stock-datatables-basic tbody').on('click', '.item-delete', function () {
+    var id = $(this).data('id');
+    var qty = Number($(this).data('qty') || 0);
+    var msg = 'Archive this stock level?';
+    if (qty > 0) {
+      msg += ' Remaining quantity (' + qty + ') will be moved out before archiving.';
+    }
+    if (!confirm(msg)) return;
+
+    var csrfEl = document.querySelector('[name=csrfmiddlewaretoken]');
+    var csrf = csrfEl ? csrfEl.value : '';
+
+    fetch('/delete-stock-level/' + id + '/', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrf,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({})
+    })
+      .then(resp => resp.json())
+      .then(data => {
+        if (data.success) {
+          alert(data.message || 'Stock level archived.');
+          dt_basic.ajax.reload(null, false);
+        } else {
+          alert(data.message || 'Failed to archive stock level.');
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        alert('Failed to archive stock level.');
+      });
+  });
 
   // After initializing the DataTable
   dt_basic_table.closest('.card').find('.head-label.text-center').html('<h5 class="card-title mb-0">Current Stocks</h5>');

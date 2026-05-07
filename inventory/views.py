@@ -1,5 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseForbidden
 from .forms import ProductForm
 from .models import *
 from django.apps import apps
@@ -13,6 +13,7 @@ from django.db.models.functions import Coalesce, TruncDate
 from functools import wraps
 from random import randint
 from django.contrib.auth import authenticate, login as django_login, logout as django_logout, get_user_model
+from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from .access import (
@@ -131,7 +132,7 @@ def login_view(request):
         if not user:
             try:
                 legacy = Users.objects.filter(is_active=True).filter(Q(username=identifier) | Q(email=identifier)).get()
-                if legacy.password and legacy.password == password:
+                if legacy.password and (legacy.password == password or check_password(password, legacy.password)):
                     U = get_user_model()
                     # Ensure a Django user exists and has this password hashed
                     dj = U.objects.filter(Q(username__iexact=legacy.username) | Q(email__iexact=legacy.email)).first()
@@ -231,7 +232,8 @@ def edit_user(request, pk):
     ModelForm = modelform_factory(Users, fields=['username', 'email', 'password', 'first_name', 'last_name', 'user_role', 'assigned_branch', 'is_active'])
     if request.method == 'POST':
         data = request.POST.copy()
-        if not data.get('password'):
+        raw_password = data.get('password') or ''
+        if not raw_password:
             # Do not overwrite password with empty string
             data.pop('password', None)
         role = data.get('user_role') or app_user.user_role
@@ -244,7 +246,11 @@ def edit_user(request, pk):
             )
         form = ModelForm(data, instance=app_user)
         if form.is_valid():
-            form.save()
+            app_user = form.save(commit=False)
+            if raw_password:
+                app_user.password = make_password(raw_password)
+            app_user.save()
+            _sync_auth_user(app_user, raw_password if raw_password else None)
             return JsonResponse({'success': True, 'message': 'User updated successfully!'})
         else:
             return JsonResponse({'success': False, 'errors': form.errors}, status=400)
@@ -766,7 +772,7 @@ def manage_stocks(request, branch_id=None, stock_id=None):
         stocks = StockLevel.objects.none()
 
     if stock_id:
-        stock = get_object_or_404(StockLevel, pk=stock_id, branch=branch) if branch else get_object_or_404(StockLevel, pk=stock_id)
+        stock = get_object_or_404(StockLevel, pk=stock_id, branch=branch, is_active=True) if branch else get_object_or_404(StockLevel, pk=stock_id, is_active=True)
         modal_title = "Edit Stock"
         form_action = reverse('edit_stock', args=[stock.pk])
         editing = True
@@ -1495,6 +1501,8 @@ def add_stock(request):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Invalid request method.'}, status=405)
 
+    branch_raw = request.POST.get('branch')
+    product_raw = request.POST.get('product')
     try:
         branch_id = int(request.POST.get('branch')) if request.POST.get('branch') else None
         related_branch_id = int(request.POST.get('related_branch')) if request.POST.get('related_branch') else None
@@ -1597,13 +1605,18 @@ def edit_stock(request, pk):
         )
 
     try:
-        branch_id = int(request.POST.get('branch')) if request.POST.get('branch') else None
-        product_id = int(request.POST.get('product')) if request.POST.get('product') else None
+        branch_id = int(branch_raw) if branch_raw else None
+        product_id = int(product_raw) if product_raw else None
         transaction_type = request.POST.get('transaction_type')
         quantity = int(request.POST.get('quantity') or 0)
         remarks = request.POST.get('remarks') or ''
     except (TypeError, ValueError):
         return JsonResponse({'success': False, 'message': 'Invalid input values.'}, status=400)
+
+    try:
+        branch_id = _resolve_branch_scope(request, branch_id)
+    except PermissionDenied as e:
+        return _json_or_forbidden(request, str(e))
 
     if not branch_id or not product_id or transaction_type not in ['IN', 'OUT'] or quantity <= 0:
         return JsonResponse({'success': False, 'message': 'Missing or invalid fields.'}, status=400)
