@@ -70,6 +70,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'inventory.context_processors.stock_branches',
             ],
         },
     },
@@ -131,6 +132,11 @@ USE_I18N = True
 
 USE_TZ = True
 
+DATE_FORMAT = 'M j, Y'
+SHORT_DATE_FORMAT = 'M j, Y'
+DATETIME_FORMAT = 'M j, Y g:i A'
+SHORT_DATETIME_FORMAT = 'M j, Y g:i A'
+
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
@@ -160,11 +166,11 @@ AUTHENTICATION_BACKENDS = [
 
 # Cookie and security best practices (tune for production)
 # Note: In local dev over HTTP, keep *_SECURE = False to avoid cookie issues.
-SESSION_COOKIE_HTTPONLY = True
+# SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
-SESSION_COOKIE_SECURE = True  # Set True in production (HTTPS)
-CSRF_COOKIE_SECURE = True     # Set True in production (HTTPS)
-SECURE_SSL_REDIRECT = True   # Enable in production with HTTPS
+SESSION_COOKIE_SECURE = not DEBUG  # True in production (HTTPS)
+CSRF_COOKIE_SECURE = not DEBUG     # True in production (HTTPS)
+SECURE_SSL_REDIRECT = not DEBUG    # Enable only when HTTPS is configured
 X_FRAME_OPTIONS = 'DENY'

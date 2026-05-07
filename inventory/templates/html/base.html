@@ -3,7 +3,7 @@
 
 <html
   lang="en"
-  class="light-style layout-navbar-fixed layout-menu-fixed"
+  class="light-style layout-menu-fixed"
   dir="ltr"
   data-theme="theme-default"
   data-assets-path="{% static 'assets/' %}"
@@ -52,6 +52,11 @@
 
       <!-- Content wrapper --> 
       <div class="layout-page">
+        <div class="d-xl-none px-3 pt-3 pb-0">
+          <a class="btn btn-sm btn-outline-secondary layout-menu-toggle" href="javascript:void(0)" aria-label="Open menu">
+            <i class="ti ti-menu-2 ti-sm"></i>
+          </a>
+        </div>
         <!-- Content Section -->
         {% block content %}
         {% endblock %}

@@ -104,8 +104,8 @@ a.bg-primary:hover, a.bg-primary:focus {
 }
 
 .bg-label-primary {
-  background-color: #eae8fd !important;
-  color: #FFEF00 !important;
+  background-color: var(--bs-table-bg) !important;
+  color: var(--bs-table-active-color) !important;
 }
 
 .bg-primary.bg-glow {
@@ -138,16 +138,6 @@ a.bg-primary:hover, a.bg-primary:focus {
 
 .modal-onboarding .carousel-indicators [data-bs-target] {
   background-color: #FFEF00;
-}
-
-.carousel-control-prev,
-.carousel-control-next {
-  color: #FFEF00;
-}
-.carousel-control-prev:hover, .carousel-control-prev:focus,
-.carousel-control-next:hover,
-.carousel-control-next:focus {
-  color: #FFEF00;
 }
 
 .list-group-item-primary {
@@ -410,7 +400,7 @@ button.list-group-item-primary.active {
 
 .nav-pills .nav-link.active, .nav-pills .nav-link.active:hover, .nav-pills .nav-link.active:focus {
   background-color: #FFEF00;
-  color: #fff;
+  color: var(--bs-nav-link-color);
 }
 
 .nav-tabs .nav-link.active, .nav-tabs .nav-link.active:hover, .nav-tabs .nav-link.active:focus,

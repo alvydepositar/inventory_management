@@ -1,0 +1,464 @@
+{% extends 'html/base.html' %}
+
+{% block title %}All Branches View{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <div class="container-xxl flex-grow-1 container-p-y">
+    <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
+      <div>
+        <h4 class="fw-bold m-0">Stocks</h4>
+        <div class="text-muted">Manage stocks, daily sales, and transfers across all branches from one workspace.</div>
+      </div>
+    </div>
+
+    <div class="d-flex align-items-center gap-2 mb-4">
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'manage_stocks' %}" aria-label="Back to branch workspaces">
+        <i class="ti ti-arrow-left"></i>
+      </a>
+      <div><span class="text-muted small">Back to branch workspaces</span></div>
+    </div>
+
+    <div class="row g-3 mb-4">
+      <div class="col-12 col-md-6">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="text-muted">Daily Sales</div>
+            <div class="fs-4 fw-semibold">PHP {{ all_daily_sales_value|floatformat:2 }}</div>
+            <div class="small text-muted">{{ all_daily_sales_quantity }} item{{ all_daily_sales_quantity|pluralize }} released today</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="text-muted">Total Sales</div>
+            <div class="fs-4 fw-semibold">PHP {{ all_total_sales_value|floatformat:2 }}</div>
+            <div class="small text-muted">{{ all_total_sales_quantity }} item{{ all_total_sales_quantity|pluralize }} released overall</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mb-4">
+      <div class="text-muted small text-uppercase mb-2">All Branches Workspace</div>
+      <ul class="nav row g-3 list-unstyled mb-0" id="reportsWorkspaceTabs" role="tablist">
+        <li class="nav-item col-12 col-lg-4" role="presentation">
+          <a class="nav-link report-choice-card {% if reports_section == 'current-summary' %}active{% endif %}" id="reports-current-summary-tab" data-bs-toggle="tab" href="#reports-current-summary" role="tab" aria-controls="reports-current-summary" aria-selected="{% if reports_section == 'current-summary' %}true{% else %}false{% endif %}">
+            <span class="report-choice-icon"><i class="ti ti-clipboard-list"></i></span>
+            <span class="report-choice-title">Stocks on Hand</span>
+            <span class="report-choice-copy">See current quantities, low-stock items, and estimated stock value.</span>
+          </a>
+        </li>
+        <li class="nav-item col-12 col-lg-4" role="presentation">
+          <a class="nav-link report-choice-card {% if reports_section == 'daily-stock-out' %}active{% endif %}" id="reports-daily-stock-out-tab" data-bs-toggle="tab" href="#reports-daily-stock-out" role="tab" aria-controls="reports-daily-stock-out" aria-selected="{% if reports_section == 'daily-stock-out' %}true{% else %}false{% endif %}">
+            <span class="report-choice-icon"><i class="ti ti-chart-bar"></i></span>
+            <span class="report-choice-title">Daily Sales</span>
+            <span class="report-choice-copy">Review released products by day, branch, and item.</span>
+          </a>
+        </li>
+        <li class="nav-item col-12 col-lg-4" role="presentation">
+          <a class="nav-link report-choice-card {% if reports_section == 'transfers' %}active{% endif %}" id="reports-transfers-tab" data-bs-toggle="tab" href="#reports-transfers" role="tab" aria-controls="reports-transfers" aria-selected="{% if reports_section == 'transfers' %}true{% else %}false{% endif %}">
+            <span class="report-choice-icon"><i class="ti ti-arrows-left-right"></i></span>
+            <span class="report-choice-title">Branch Transfers</span>
+            <span class="report-choice-copy">Check items moved from one branch to another.</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+
+    <div class="tab-content" id="reportsWorkspaceContent">
+      <div class="tab-pane fade {% if reports_section == 'current-summary' %}show active{% endif %}" id="reports-current-summary" role="tabpanel" aria-labelledby="reports-current-summary-tab" tabindex="0">
+        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+          <div>
+            <h5 class="fw-semibold mb-1">All Branches Stocks On Hand</h5>
+            <div class="text-muted">Review balances and overall stock health across all branches.</div>
+          </div>
+        </div>
+
+        <div id="summaryReportFilters" class="card mb-4" aria-labelledby="summaryReportFiltersLabel">
+          <div class="card-body">
+            <div class="text-muted small mb-2" id="summaryReportFiltersLabel">Filter this report</div>
+            <div class="row g-2 align-items-end">
+              <div class="col-12 col-md-8 col-lg-4">
+                <label class="form-label" for="summaryBranch">Branch</label>
+                <select id="summaryBranch" class="form-select" aria-label="Branch filter">
+                  <option value="">All Branches</option>
+                  {% for branch in branches %}
+                    <option value="{{ branch.id }}" {% if selected_branch_id|stringformat:"s" == branch.id|stringformat:"s" %}selected{% endif %}>{{ branch.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-12 col-md-4 col-lg-2">
+                <button id="summaryClearFilters" class="btn btn-outline-primary w-100" type="button">Clear Filters</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Products</div>
+                <div class="fs-3 fw-semibold" id="summaryProductsCard">0</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Stocks On Hand</div>
+                <div class="fs-3 fw-semibold" id="summaryQuantityCard">0</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Low Stock Items</div>
+                <div class="fs-3 fw-semibold text-danger" id="summaryLowStockCard">0</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Estimated Stock Value</div>
+                <div class="fs-3 fw-semibold" id="summaryValueCard">PHP 0.00</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card table-blend-shell mb-4">
+          <div class="card-body pb-0">
+            <h5 class="card-title mb-1">Product Stock List</h5>
+            <div class="text-muted">This is the main list most users will need day to day.</div>
+          </div>
+          <div class="card-datatable table-responsive pt-0">
+            <table id="itemSummaryTable" class="summary-item-datatables-basic table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Stocks On Hand</th>
+                  <th>Low Stock Limit</th>
+                  <th>Status</th>
+                  <th>Brand</th>
+                  <th>Category</th>
+                  <th>Unit Price</th>
+                  <th>Estimated Stock Value</th>
+                  <th>History</th>
+                </tr>
+              </thead>
+            </table>
+          </div>
+        </div>
+
+        <div class="accordion report-detail-accordion" id="summaryDetailAccordion">
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="summaryBrandHeading">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#summaryBrandCollapse" aria-expanded="false" aria-controls="summaryBrandCollapse">
+                More Details: Totals By Brand
+              </button>
+            </h2>
+            <div id="summaryBrandCollapse" class="accordion-collapse collapse" aria-labelledby="summaryBrandHeading" data-bs-parent="#summaryDetailAccordion">
+              <div class="accordion-body">
+                <div class="text-muted small mb-3">Use this when you need a quick brand-level stock summary.</div>
+                <div class="card table-blend-shell mb-0">
+                  <div class="card-datatable table-responsive pt-0">
+                    <table id="brandSummaryTable" class="summary-brand-datatables-basic table">
+                      <thead>
+                        <tr>
+                          <th>Brand</th>
+                          <th>Products</th>
+                          <th>Stocks On Hand</th>
+                          <th>Estimated Stock Value</th>
+                        </tr>
+                      </thead>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="summaryCategoryHeading">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#summaryCategoryCollapse" aria-expanded="false" aria-controls="summaryCategoryCollapse">
+                More Details: Totals By Category
+              </button>
+            </h2>
+            <div id="summaryCategoryCollapse" class="accordion-collapse collapse" aria-labelledby="summaryCategoryHeading" data-bs-parent="#summaryDetailAccordion">
+              <div class="accordion-body">
+                <div class="text-muted small mb-3">Use this when you need a category-level stock summary.</div>
+                <div class="card table-blend-shell mb-0">
+                  <div class="card-datatable table-responsive pt-0">
+                    <table id="categorySummaryTable" class="summary-category-datatables-basic table">
+                      <thead>
+                        <tr>
+                          <th>Category</th>
+                          <th>Products</th>
+                          <th>Stocks On Hand</th>
+                          <th>Estimated Stock Value</th>
+                        </tr>
+                      </thead>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-pane fade {% if reports_section == 'daily-stock-out' %}show active{% endif %}" id="reports-daily-stock-out" role="tabpanel" aria-labelledby="reports-daily-stock-out-tab" tabindex="0">
+        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+          <div>
+            <h5 class="fw-semibold mb-1">All Branches Daily Sales</h5>
+            <div class="text-muted">This report is based on released stock transactions recorded in the system.</div>
+          </div>
+        </div>
+
+        <div id="dailySalesReportFilters" class="card mb-4" aria-labelledby="dailySalesReportFiltersLabel">
+          <div class="card-body">
+            <div class="text-muted small mb-2" id="dailySalesReportFiltersLabel">Filter this report</div>
+            <div class="row g-2 align-items-end">
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="salesBranch">Branch</label>
+                <select id="salesBranch" class="form-select" aria-label="Branch filter">
+                  <option value="">All Branches</option>
+                  {% for branch in branches %}
+                    <option value="{{ branch.id }}" {% if selected_branch_id|stringformat:"s" == branch.id|stringformat:"s" %}selected{% endif %}>{{ branch.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="salesProduct">Product</label>
+                <select id="salesProduct" class="form-select" aria-label="Product filter">
+                  <option value="">All Products</option>
+                  {% for product in products %}
+                    <option value="{{ product.id }}" {% if selected_product_id|stringformat:"s" == product.id|stringformat:"s" %}selected{% endif %}>{{ product.product_name }} ({{ product.brand.name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="salesDateRange">Date Or Date Range</label>
+                <input
+                  id="salesDateRange"
+                  class="form-control"
+                  aria-label="Date range filter"
+                  placeholder="Choose date or range"
+                  value="{% if selected_date_from and selected_date_to %}{{ selected_date_from }} to {{ selected_date_to }}{% elif selected_date_from %}{{ selected_date_from }}{% elif selected_date_to %}{{ selected_date_to }}{% endif %}"
+                />
+              </div>
+              <div class="col-12 col-md-3 col-lg-2">
+                <button id="salesClearFilters" class="btn btn-outline-primary w-100" type="button">Clear Filters</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Transactions</div>
+                <div class="fs-3 fw-semibold" id="salesRowsCard">0</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Items Released</div>
+                <div class="fs-3 fw-semibold" id="salesQuantityCard">0</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Estimated Value</div>
+                <div class="fs-3 fw-semibold" id="salesValueCard">PHP 0.00</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Products</div>
+                <div class="fs-3 fw-semibold" id="salesProductsCard">0</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card table-blend-shell">
+          <div class="card-body pb-0">
+            <h5 class="card-title mb-1">Daily Sales List</h5>
+            <div class="text-muted">Review released items by date, branch, and product.</div>
+          </div>
+          <div class="card-datatable table-responsive pt-0">
+            <table id="dailySalesTable" class="daily-sales-datatables-basic table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Branch</th>
+                  <th>Product</th>
+                  <th>Brand</th>
+                  <th>Items Released</th>
+                  <th>Estimated Value</th>
+                  <th>Stocks On Hand</th>
+                  <th>History</th>
+                </tr>
+              </thead>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-pane fade {% if reports_section == 'transfers' %}show active{% endif %}" id="reports-transfers" role="tabpanel" aria-labelledby="reports-transfers-tab" tabindex="0">
+        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+          <div>
+            <h5 class="fw-semibold mb-1">All Branches Transfers</h5>
+            <div class="text-muted">Review items that were moved from one branch to another.</div>
+          </div>
+        </div>
+
+        <div id="transferReportFilters" class="card mb-4" aria-labelledby="transferReportFiltersLabel">
+          <div class="card-body">
+            <div class="text-muted small mb-2" id="transferReportFiltersLabel">Filter this report</div>
+            <div class="row g-2 align-items-end">
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="transferBranch">Branch</label>
+                <select id="transferBranch" class="form-select" aria-label="Branch filter">
+                  <option value="">All Branches</option>
+                  {% for branch in branches %}
+                    <option value="{{ branch.id }}" {% if selected_branch_id|stringformat:"s" == branch.id|stringformat:"s" %}selected{% endif %}>{{ branch.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="transferProduct">Product</label>
+                <select id="transferProduct" class="form-select" aria-label="Product filter">
+                  <option value="">All Products</option>
+                  {% for product in products %}
+                    <option value="{{ product.id }}" {% if selected_product_id|stringformat:"s" == product.id|stringformat:"s" %}selected{% endif %}>{{ product.product_name }} ({{ product.brand.name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="transferDateRange">Date Or Date Range</label>
+                <input
+                  id="transferDateRange"
+                  class="form-control"
+                  aria-label="Date range filter"
+                  placeholder="Choose date or range"
+                  value="{% if selected_date_from and selected_date_to %}{{ selected_date_from }} to {{ selected_date_to }}{% elif selected_date_from %}{{ selected_date_from }}{% elif selected_date_to %}{{ selected_date_to }}{% endif %}"
+                />
+              </div>
+              <div class="col-12 col-md-3 col-lg-2">
+                <button id="transferClearFilters" class="btn btn-outline-primary w-100" type="button">Clear Filters</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Transfer Records</div>
+                <div class="fs-3 fw-semibold" id="transferCountCard">0</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Items Moved</div>
+                <div class="fs-3 fw-semibold" id="transferQuantityCard">0</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Transfer Routes</div>
+                <div class="fs-3 fw-semibold" id="transferRoutesCard">0</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Products</div>
+                <div class="fs-3 fw-semibold" id="transferProductsCard">0</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card table-blend-shell">
+          <div class="card-body pb-0">
+            <h5 class="card-title mb-1">Transfer List</h5>
+            <div class="text-muted">Review items sent out, received, and who handled them.</div>
+          </div>
+          <div class="card-datatable table-responsive pt-0">
+            <table id="transferReportTable" class="transfer-report-datatables-basic table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>From Branch</th>
+                  <th>To Branch</th>
+                  <th>Product</th>
+                  <th>Brand</th>
+                  <th>Quantity</th>
+                  <th>Handled By</th>
+                  <th>History</th>
+                </tr>
+              </thead>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="stockHistoryModal" tabindex="-1" aria-labelledby="stockHistoryModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title" id="stockHistoryModalLabel">Transaction History</h5>
+          <div class="text-muted small" id="stockHistoryModalSubtitle">Select a row to view its transaction history.</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex justify-content-end mb-3">
+          <a id="stockHistoryModalOpenTab" class="btn btn-outline-primary btn-sm" href="{% url 'stock_history' %}">
+            <i class="ti ti-external-link me-1"></i> Open Full Tab
+          </a>
+        </div>
+        <div class="table-responsive">
+          <table id="stockHistoryModalTable" class="stock-history-modal-datatables-basic table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Txn ID</th>
+                <th>Before</th>
+                <th>Action</th>
+                <th>Ending Balance</th>
+                <th>Handled By</th>
+                <th>Remarks</th>
+              </tr>
+            </thead>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
