@@ -2,8 +2,8 @@
 # Color Smile Inventory Management System
 ## User Guide and User Manual
 
-Document version: 1.0  
-Document date: April 22, 2026
+Document version: 1.2  
+Document date: May 2, 2026
 
 ---
 
@@ -62,6 +62,8 @@ Document date: April 22, 2026
 | Version | Date | Summary |
 | --- | --- | --- |
 | 1.0 | April 22, 2026 | Full rewrite aligned to current application UI and workflows |
+| 1.1 | April 27, 2026 | Language updated to be more user-friendly and less technical |
+| 1.2 | May 2, 2026 | Role permissions and branch-based access updated and enforced |
 
 ---
 
@@ -116,7 +118,7 @@ Primary responsibilities:
 Primary responsibilities:
 
 1. Record stock actions accurately.
-2. Review branch stock balances.
+2. Review stock balances for the assigned branch.
 3. Use filters and exports for daily operations.
 4. Verify product, branch, and quantity before submission.
 
@@ -124,23 +126,31 @@ Primary responsibilities:
 
 Primary responsibilities:
 
-1. Monitor branch-level stock balances and alerts.
+1. Monitor stock balances and alerts for the assigned branch.
 2. Review branch daily sales and branch transfers.
-3. Validate transaction history and balance changes.
-4. Coordinate stock movement between branches.
+3. Maintain product, category, brand, and supplier records (add/edit).
+4. Correct stock transactions for the assigned branch when needed.
+
+### 3.4 Branch Assignment Rules
+
+1. `User` and `Branch Manager` accounts must be assigned to one branch.
+2. Non-admin accounts can only access their assigned branch data.
+3. `Admin` accounts are not branch-limited and can access all branches.
 
 ## 4. Access Matrix (Recommended)
 
 | Function | Admin | User | Branch Manager |
 | --- | --- | --- | --- |
 | Manage users | Yes | No | No |
-| Maintain products and references | Yes | Yes | Yes |
+| Maintain products, categories, brands, suppliers | Yes (Add/Edit/Delete) | No | Yes (Add/Edit only) |
+| Maintain branch records | Yes | No | No |
 | Record stock actions | Yes | Yes | Yes |
-| View branch reports | Yes | Yes | Yes |
-| View all-branch reports | Yes | Yes | Yes |
+| Correct/delete stock actions | Yes | No | Yes (Assigned branch only) |
+| View branch reports | Yes | Yes (Assigned branch only) | Yes (Assigned branch only) |
+| View all-branch reports | Yes | No | No |
 | Export reports | Yes | Yes | Yes |
 
-Note: Final access can be adjusted by deployment policy.
+Note: Exports for non-admin accounts only include records within the assigned branch scope.
 
 ## 5. Navigation Overview
 
@@ -250,7 +260,8 @@ Per-Branch Summary:
 3. Enter User Name and Email.
 4. Enter Password.
 5. Select Role.
-6. Click Submit.
+6. If role is `User` or `Branch Manager`, select Assigned Branch.
+7. Click Submit.
 
 ### 4.3 Edit User
 
@@ -390,6 +401,8 @@ Menu path:
 
 ## 5.4 Branch Management
 
+Role scope: Admin only.
+
 Menu path:
 
 1. Inventory Management
@@ -442,6 +455,11 @@ Main branch workspace tabs:
 3. Branch Transfers
 4. Low Stocks
 5. Transaction Log (opened by history links or full-tab link)
+
+Access notes:
+
+1. Non-admin users are limited to their assigned branch workspace.
+2. Admin can open all branch workspaces.
 
 ## 6.1 Stocks On Hand
 
@@ -527,6 +545,8 @@ Entry:
 
 1. Open Stocks.
 2. Open All Branches View.
+
+Note: This workspace is for `Admin` role only.
 
 Main tabs:
 

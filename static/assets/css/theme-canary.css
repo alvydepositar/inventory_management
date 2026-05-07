@@ -127,6 +127,7 @@ a:hover { color: var(--bs-link-hover-color); }
   flex-direction: column;
   gap: 0.5rem;
   min-height: 100%;
+  position: relative;
   padding: 1.25rem;
   border: 1px solid rgba(75, 70, 92, 0.12);
   border-radius: 0.75rem;
@@ -141,12 +142,24 @@ a:hover { color: var(--bs-link-hover-color); }
   background-color: #fffdf4;
 }
 
-.nav-pills .nav-link.report-choice-card.active,
-.nav-pills .show > .nav-link.report-choice-card {
-  background-color: var(--canary-100);
+.nav-link.report-choice-card.active,
+.show > .nav-link.report-choice-card {
+  background-color: var(--canary-75);
   color: #5b4f00;
   border-color: rgba(var(--bs-primary-rgb), 0.45);
   box-shadow: 0 0 0 1px rgba(var(--bs-primary-rgb), 0.15);
+}
+
+.nav-link.report-choice-card.active::after,
+.show > .nav-link.report-choice-card::after {
+  content: '';
+  position: absolute;
+  left: 1.25rem;
+  bottom: 0.75rem;
+  width: 2.1rem;
+  height: 0.2rem;
+  border-radius: 999px;
+  background-color: #705e00;
 }
 
 .report-choice-icon {

@@ -5,6 +5,12 @@
 {% block content %}
 <div class="content-wrapper">
   <div class="container-xxl flex-grow-1 container-p-y">
+    <style>
+      .scrollable-select {
+        max-height: 220px;
+        overflow-y: auto;
+      }
+    </style>
     {% if branch %}
     <script>window.currentBranchId={{ branch.id }};</script>
     {% else %}
@@ -503,7 +509,7 @@
             </table>
           </div>
         </div>
-      </div>
+      </form>
     </div>
     {% else %}
     <div class="card mb-4">
@@ -517,45 +523,47 @@
       </div>
       <div class="card-body">
         <div class="row g-3">
-          <div class="col-12 col-md-6 col-xl-4">
-            <div class="card h-100 border border-light">
-              <div class="card-body d-flex flex-column">
-                <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
-                  <div>
-                    <h5 class="mb-1">All Branches View</h5>
-                    <div class="text-muted small">
-                      <i class="ti ti-layout-grid me-1"></i>Consolidated stocks, daily sales, and branch transfers
+          {% if can_view_all_branches_reports %}
+            <div class="col-12 col-md-6 col-xl-4">
+              <div class="card h-100 border border-light">
+                <div class="card-body d-flex flex-column">
+                  <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
+                    <div>
+                      <h5 class="mb-1">All Branches View</h5>
+                      <div class="text-muted small">
+                        <i class="ti ti-layout-grid me-1"></i>Consolidated stocks, daily sales, and branch transfers
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div class="row g-2 mb-3">
-                  <div class="col-4">
-                    <div class="rounded border bg-lighter p-2 text-center h-100">
-                      <div class="fw-semibold">All</div>
-                      <div class="small text-muted">Branches</div>
+                  <div class="row g-2 mb-3">
+                    <div class="col-4">
+                      <div class="rounded border bg-lighter p-2 text-center h-100">
+                        <div class="fw-semibold">All</div>
+                        <div class="small text-muted">Branches</div>
+                      </div>
+                    </div>
+                    <div class="col-4">
+                      <div class="rounded border bg-lighter p-2 text-center h-100">
+                        <div class="fw-semibold">Stocks</div>
+                        <div class="small text-muted">Sales</div>
+                      </div>
+                    </div>
+                    <div class="col-4">
+                      <div class="rounded border bg-lighter p-2 text-center h-100">
+                        <div class="fw-semibold">View</div>
+                        <div class="small text-muted">Ready</div>
+                      </div>
                     </div>
                   </div>
-                  <div class="col-4">
-                    <div class="rounded border bg-lighter p-2 text-center h-100">
-                      <div class="fw-semibold">Stocks</div>
-                      <div class="small text-muted">Sales</div>
-                    </div>
-                  </div>
-                  <div class="col-4">
-                    <div class="rounded border bg-lighter p-2 text-center h-100">
-                      <div class="fw-semibold">View</div>
-                      <div class="small text-muted">Ready</div>
-                    </div>
-                  </div>
-                </div>
 
-                <a href="{% url 'all_branches_view' %}" class="btn btn-outline-primary mt-auto w-100">
-                  Open All Branches View
-                </a>
+                  <a href="{% url 'all_branches_view' %}" class="btn btn-outline-primary mt-auto w-100">
+                    Open All Branches View
+                  </a>
+                </div>
               </div>
             </div>
-          </div>
+          {% endif %}
 
           {% for branch_item in branches %}
             {% url 'manage_stocks' branch_item.id as branch_stocks_url %}
@@ -639,7 +647,7 @@
               {% if editing %}
                 <input type="hidden" name="stock_id" value="{{ stock.id }}">
               {% endif %}
-              <div class="col-12 col-md-6">
+              <div class="col-12 col-md-4">
                 <label class="form-label" for="stockType">Choose Action</label>
                 <select id="stockType" name="transaction_type" class="form-select" required aria-required="true">
                   <option value="IN" {% if editing and stock.transaction_type == 'IN' %}selected{% endif %}>Receive Stock</option>
@@ -662,7 +670,7 @@
                 <label class="form-label" for="stockBranch">Branch</label>
                 <select id="stockBranch" name="branch" class="form-select" required aria-required="true">
                   <option value="" disabled selected>Select Branch</option>
-                  {% for branch_item in branches %}
+                  {% for branch_item in source_branches %}
                     <option value="{{ branch_item.id }}" {% if editing and stock.branch.id == branch_item.id %}selected{% endif %}>{{ branch_item.name }}</option>
                   {% endfor %}
                 </select>
@@ -672,7 +680,7 @@
                 <label class="form-label" for="stockRelatedBranch">To Branch</label>
                 <select id="stockRelatedBranch" name="related_branch" class="form-select" aria-required="false">
                   <option value="" selected>Select To Branch</option>
-                  {% for branch_item in branches %}
+                  {% for branch_item in destination_branches %}
                     <option value="{{ branch_item.id }}">{{ branch_item.name }}</option>
                   {% endfor %}
                 </select>

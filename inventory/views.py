@@ -1,5 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseForbidden
 from .forms import ProductForm
 from .models import *
 from django.apps import apps
@@ -13,7 +13,101 @@ from django.db.models.functions import Coalesce, TruncDate
 from functools import wraps
 from random import randint
 from django.contrib.auth import authenticate, login as django_login, logout as django_logout, get_user_model
+from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
+from .access import (
+    ROLE_ADMIN,
+    ROLE_BRANCH_MANAGER,
+    ROLE_USER,
+    can_access_branch,
+    get_access_context,
+    get_request_app_user,
+    normalize_branch_id_for_user,
+    scope_branch_queryset,
+    scope_branches_queryset,
+)
+
+
+def _json_forbidden(message='You do not have permission to perform this action.'):
+    return JsonResponse({'success': False, 'message': message}, status=403)
+
+
+def _forbidden_response(message, json_response):
+    if json_response:
+        return _json_forbidden(message)
+    raise PermissionDenied(message)
+
+
+def role_required(*allowed_roles, json_response=False, require_branch_assignment=False):
+    allowed = set(allowed_roles)
+
+    def decorator(view_func):
+        @wraps(view_func)
+        def wrapped(request, *args, **kwargs):
+            access = get_access_context(request)
+            if not access.app_user and not access.is_admin:
+                return _forbidden_response(
+                    'Your account is not mapped in the application user records.',
+                    json_response,
+                )
+            if allowed and access.role not in allowed:
+                return _forbidden_response(
+                    'You do not have permission to access this module.',
+                    json_response,
+                )
+            if require_branch_assignment and not access.is_admin and not access.assigned_branch_id:
+                return _forbidden_response(
+                    'Your account does not have an assigned branch. Contact an administrator.',
+                    json_response,
+                )
+            return view_func(request, *args, **kwargs)
+
+        return wrapped
+
+    return decorator
+
+
+MODEL_WRITE_ROLE_MAP = {
+    'Users': {
+        'create': {ROLE_ADMIN},
+        'update': {ROLE_ADMIN},
+        'delete': {ROLE_ADMIN},
+    },
+    'Products': {
+        'create': {ROLE_ADMIN, ROLE_BRANCH_MANAGER},
+        'update': {ROLE_ADMIN, ROLE_BRANCH_MANAGER},
+        'delete': {ROLE_ADMIN},
+    },
+    'Categories': {
+        'create': {ROLE_ADMIN, ROLE_BRANCH_MANAGER},
+        'update': {ROLE_ADMIN, ROLE_BRANCH_MANAGER},
+        'delete': {ROLE_ADMIN},
+    },
+    'Brands': {
+        'create': {ROLE_ADMIN, ROLE_BRANCH_MANAGER},
+        'update': {ROLE_ADMIN, ROLE_BRANCH_MANAGER},
+        'delete': {ROLE_ADMIN},
+    },
+    'Suppliers': {
+        'create': {ROLE_ADMIN, ROLE_BRANCH_MANAGER},
+        'update': {ROLE_ADMIN, ROLE_BRANCH_MANAGER},
+        'delete': {ROLE_ADMIN},
+    },
+    'Branches': {
+        'create': {ROLE_ADMIN},
+        'update': {ROLE_ADMIN},
+        'delete': {ROLE_ADMIN},
+    },
+}
+
+
+def _can_mutate_model(request, model_name, action):
+    role = get_access_context(request).role
+    action_map = MODEL_WRITE_ROLE_MAP.get(model_name)
+    if action_map is None:
+        return role == ROLE_ADMIN
+    return role in action_map.get(action, set())
 
 def login_view(request):
     from django.utils.http import url_has_allowed_host_and_scheme
@@ -38,7 +132,7 @@ def login_view(request):
         if not user:
             try:
                 legacy = Users.objects.filter(is_active=True).filter(Q(username=identifier) | Q(email=identifier)).get()
-                if legacy.password and legacy.password == password:
+                if legacy.password and (legacy.password == password or check_password(password, legacy.password)):
                     U = get_user_model()
                     # Ensure a Django user exists and has this password hashed
                     dj = U.objects.filter(Q(username__iexact=legacy.username) | Q(email__iexact=legacy.email)).first()
@@ -63,6 +157,11 @@ def login_view(request):
             if app_user:
                 request.session['user_id'] = app_user.id
                 request.session['user_role'] = app_user.user_role
+                request.session['user_branch_id'] = app_user.assigned_branch_id
+            else:
+                request.session.pop('user_id', None)
+                request.session.pop('user_role', None)
+                request.session.pop('user_branch_id', None)
             # Redirect to next if it's a safe local URL
             next_url = request.POST.get('next') or request.GET.get('next')
             if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
@@ -76,41 +175,94 @@ def logout_view(request):
     return redirect('auth_login')
 
 @login_required
+@role_required(ROLE_ADMIN)
 def manage_users(request):
-    return render(request, 'html/manage-users.html')
+    return render(
+        request,
+        'html/manage-users.html',
+        {'branches': Branches.objects.order_by('name')},
+    )
 
 @login_required
+@role_required(ROLE_ADMIN, json_response=True)
 def add_user(request):
-    return add_item(request, 'inventory', 'Users')
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
+
+    ModelForm = modelform_factory(Users, fields=['username', 'email', 'password', 'first_name', 'last_name', 'user_role', 'assigned_branch', 'is_active'])
+    data = request.POST.copy()
+    role = data.get('user_role') or ROLE_USER
+
+    if role == ROLE_ADMIN:
+        data['assigned_branch'] = ''
+    elif not data.get('assigned_branch'):
+        return JsonResponse(
+            {'success': False, 'errors': {'assigned_branch': ['Branch assignment is required for this role.']}},
+            status=400,
+        )
+
+    form = ModelForm(data)
+    if form.is_valid():
+        form.save()
+        return JsonResponse({'success': True, 'message': 'User added successfully!'})
+    return JsonResponse({'success': False, 'errors': form.errors}, status=400)
 
 @login_required
+@role_required(ROLE_ADMIN, json_response=True)
 def user_data(request):
-    users = Users.objects.all().values('id', 'username', 'email', 'first_name', 'last_name', 'user_role', 'is_active', 'date_joined')
+    users = Users.objects.select_related('assigned_branch').all().values(
+        'id',
+        'username',
+        'email',
+        'first_name',
+        'last_name',
+        'user_role',
+        'assigned_branch_id',
+        'assigned_branch__name',
+        'is_active',
+        'date_joined',
+    )
     data = list(users)
     return JsonResponse({'data': data})
 
 @login_required
+@role_required(ROLE_ADMIN, json_response=True)
 def edit_user(request, pk):
-    user = get_object_or_404(Users, pk=pk)
-    ModelForm = modelform_factory(Users, fields='__all__')
+    app_user = get_object_or_404(Users, pk=pk)
+    ModelForm = modelform_factory(Users, fields=['username', 'email', 'password', 'first_name', 'last_name', 'user_role', 'assigned_branch', 'is_active'])
     if request.method == 'POST':
         data = request.POST.copy()
-        if not data.get('password'):
+        raw_password = data.get('password') or ''
+        if not raw_password:
             # Do not overwrite password with empty string
             data.pop('password', None)
-        form = ModelForm(data, instance=user)
+        role = data.get('user_role') or app_user.user_role
+        if role == ROLE_ADMIN:
+            data['assigned_branch'] = ''
+        elif not data.get('assigned_branch'):
+            return JsonResponse(
+                {'success': False, 'errors': {'assigned_branch': ['Branch assignment is required for this role.']}},
+                status=400,
+            )
+        form = ModelForm(data, instance=app_user)
         if form.is_valid():
-            form.save()
+            app_user = form.save(commit=False)
+            if raw_password:
+                app_user.password = make_password(raw_password)
+            app_user.save()
+            _sync_auth_user(app_user, raw_password if raw_password else None)
             return JsonResponse({'success': True, 'message': 'User updated successfully!'})
         else:
-            return JsonResponse({'success': False, 'errors': form.errors})
+            return JsonResponse({'success': False, 'errors': form.errors}, status=400)
     return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
 
 @login_required
+@role_required(ROLE_ADMIN, json_response=True)
 def delete_user(request, pk):
     return delete_item(request, 'inventory', 'Users', pk)
 
 @login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, json_response=True)
 def add_item(request, app_label, model_name):
     """
     A dynamic view to add items to the database for different models.
@@ -133,14 +285,18 @@ def add_item(request, app_label, model_name):
     ModelForm = modelform_factory(model, fields='__all__')
 
     if request.method == 'POST':
+        if not _can_mutate_model(request, model_name, 'create'):
+            return _json_forbidden('You do not have permission to create this record.')
         form = ModelForm(request.POST)
         if form.is_valid():
             form.save()
             return JsonResponse({'success': True, 'message': f'{model_name} added successfully!'})
         else:
-            return JsonResponse({'success': False, 'errors': form.errors})
+            return JsonResponse({'success': False, 'errors': form.errors}, status=400)
     return JsonResponse({'success': False, 'message': 'Invalid request method.'})
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, json_response=True)
 def edit_item(request, app_label, model_name, item_id):
     try:
         model = apps.get_model(app_label, model_name)
@@ -155,15 +311,19 @@ def edit_item(request, app_label, model_name, item_id):
     ModelForm = modelform_factory(model, fields='__all__')
 
     if request.method == 'POST':
+        if not _can_mutate_model(request, model_name, 'update'):
+            return _json_forbidden('You do not have permission to update this record.')
         form = ModelForm(request.POST, instance=item)
         if form.is_valid():
             form.save()
             return JsonResponse({'success': True, 'message': f'{model_name} updated successfully!'})
         else:
-            return JsonResponse({'success': False, 'errors': form.errors})
+            return JsonResponse({'success': False, 'errors': form.errors}, status=400)
     else:
         return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, json_response=True)
 def delete_item(request, app_label, model_name, item_id):
     """
     A dynamic view to delete items from the database for different models.
@@ -185,12 +345,16 @@ def delete_item(request, app_label, model_name, item_id):
 
     try:
         # Retrieve the item to be deleted
+        if not _can_mutate_model(request, model_name, 'delete'):
+            return _json_forbidden('You do not have permission to delete this record.')
         item = model.objects.get(pk=item_id)
         item.delete()
         return JsonResponse({'success': True, 'message': f'{model_name} deleted successfully!'})
     except model.DoesNotExist:
         return JsonResponse({'success': False, 'message': f'{model_name} not found.'})
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER)
 def product_catalogue(request, id=None):
     if id:  # Editing an existing product
         product = get_object_or_404(Products, pk=id)
@@ -218,6 +382,8 @@ def product_catalogue(request, id=None):
     }
     return render(request, 'html/product-catalogue.html', context)
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER, json_response=True)
 def product_data(request):
     products = Products.objects.all().values(
         'id', 'product_id', 'product_name', 'category__name', 'category__id', 'brand__name', 'brand__id',
@@ -226,9 +392,13 @@ def product_data(request):
     data = list(products)
     return JsonResponse({'data': data})
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, json_response=True)
 def add_product(request):
     return add_item(request, 'inventory', 'Products')
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, json_response=True)
 def edit_product(request, pk):
     """
     Edit a product by its primary key (pk).
@@ -249,9 +419,13 @@ def edit_product(request, pk):
         
     return edit_item(request, 'inventory', 'Products', pk)
 
+@login_required
+@role_required(ROLE_ADMIN, json_response=True)
 def delete_product(request, pk):
     return delete_item(request, 'inventory', 'Products', pk)
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER)
 def product_details(request, category_id=None, brand_id=None):
     if category_id:
         category = get_object_or_404(apps.get_model('inventory', 'Categories'), pk=category_id)
@@ -287,14 +461,20 @@ def product_details(request, category_id=None, brand_id=None):
     }
     return render(request, 'html/product-details.html', context)
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER, json_response=True)
 def category_data(request):
     categories = apps.get_model('inventory', 'Categories').objects.all().values('id', 'name')
     data = list(categories)
     return JsonResponse({'data': data})
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, json_response=True)
 def add_category(request):
     return add_item(request, 'inventory', 'Categories')
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, json_response=True)
 def edit_category(request, pk):
     """
     Edit a category by its primary key (pk).
@@ -315,17 +495,25 @@ def edit_category(request, pk):
     else:
         return edit_item(request, 'inventory', 'Categories', pk)
 
+@login_required
+@role_required(ROLE_ADMIN, json_response=True)
 def delete_category(request, pk):
     return delete_item(request, 'inventory', 'Categories', pk)
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER, json_response=True)
 def brand_data(request):
     brands = apps.get_model('inventory', 'Brands').objects.all().values('id', 'name')
     data = list(brands)
     return JsonResponse({'data': data})
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, json_response=True)
 def add_brand(request):
     return add_item(request, 'inventory', 'Brands')
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, json_response=True)
 def edit_brand(request, pk):
     Brands = apps.get_model('inventory', 'Brands')
     brand = get_object_or_404(Brands, pk=pk)
@@ -341,9 +529,13 @@ def edit_brand(request, pk):
     else:
         return edit_item(request, 'inventory', 'Brands', pk)
 
+@login_required
+@role_required(ROLE_ADMIN, json_response=True)
 def delete_brand(request, pk):
     return delete_item(request, 'inventory', 'Brands', pk)
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER)
 def suppliers(request, id=None):
     if id: # Editing an existing supplier
         supplier = get_object_or_404(Suppliers, pk=id)
@@ -364,20 +556,30 @@ def suppliers(request, id=None):
 
     return render(request, 'html/suppliers.html', context)
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER, json_response=True)
 def supplier_data(request):
     suppliers = apps.get_model('inventory', 'Suppliers').objects.all().values('id', 'name', 'contact_person', 'contact_number', 'email', 'address')
     data = list(suppliers)
     return JsonResponse({'data': data})
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, json_response=True)
 def add_supplier(request):
     return add_item(request, 'inventory', 'Suppliers')
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, json_response=True)
 def edit_supplier(request, pk):
     return edit_item(request, 'inventory', 'Suppliers', pk)
 
+@login_required
+@role_required(ROLE_ADMIN, json_response=True)
 def delete_supplier(request, pk):
     return delete_item(request, 'inventory', 'Suppliers', pk)
 
+@login_required
+@role_required(ROLE_ADMIN)
 def branches(request, id=None):
     if id:  # Editing an existing branch
         branch = get_object_or_404(Branches, pk=id)
@@ -390,31 +592,45 @@ def branches(request, id=None):
         form_action = reverse('add_branch')
         editing = False
 
+    scoped_branches = scope_branches_queryset(request, Branches.objects.all())
+
     context = {
         'modal_title': modal_title,
         'form_action': form_action,
         'editing': editing,
         'branch': branch,
+        'branches': scoped_branches,
     }
     return render(request, 'html/branches.html', context)
 
+@login_required
+@role_required(ROLE_ADMIN, json_response=True)
 def add_branch(request):
     return add_item(request, 'inventory', 'Branches')
 
+@login_required
+@role_required(ROLE_ADMIN, json_response=True)
 def edit_branch(request, pk):
     return edit_item(request, 'inventory', 'Branches', pk)
 
+@login_required
+@role_required(ROLE_ADMIN, json_response=True)
 def delete_branch(request, pk):
     return delete_item(request, 'inventory', 'Branches', pk)
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, json_response=True)
 def branch_data(request):
-    branches = apps.get_model('inventory', 'Branches').objects.all().values('id', 'name', 'location')
+    branches = scope_branches_queryset(request, apps.get_model('inventory', 'Branches').objects.all()).values('id', 'name', 'location')
     data = list(branches)
     return JsonResponse({'data': data})
 
-def _branch_inventory_summary_queryset():
+def _branch_inventory_summary_queryset(request=None):
     active_stock_filter = Q(stocklevel__is_active=True)
-    return Branches.objects.all().order_by('name').annotate(
+    base_qs = Branches.objects.all().order_by('name')
+    if request is not None:
+        base_qs = scope_branches_queryset(request, base_qs)
+    return base_qs.annotate(
         tracked_products_count=Count(
             'stocklevel',
             filter=active_stock_filter,
@@ -439,14 +655,19 @@ def _attach_branch_low_stock_items(branches_list, preview_limit=None):
         branch.low_stock_items = []
         branch.remaining_low_stock_items = 0
 
+    low_stock_qs = StockLevel.objects.filter(
+        is_active=True,
+        branch__isnull=False,
+        product__isnull=False,
+        quantity__lte=F('product__low_stock_limit'),
+    )
+    if branch_lookup:
+        low_stock_qs = low_stock_qs.filter(branch_id__in=list(branch_lookup.keys()))
+    else:
+        low_stock_qs = low_stock_qs.none()
+
     low_stock_items = (
-        StockLevel.objects.filter(
-            is_active=True,
-            branch__isnull=False,
-            product__isnull=False,
-            quantity__lte=F('product__low_stock_limit'),
-        )
-        .select_related('branch', 'product', 'product__brand')
+        low_stock_qs.select_related('branch', 'product', 'product__brand')
         .order_by('branch__name', 'product__product_name')
     )
 
@@ -518,6 +739,7 @@ def _attach_branch_sales_metrics(branches_list, day=None):
     return branches_list
 
 @login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER, require_branch_assignment=True)
 def manage_stocks(request, branch_id=None, stock_id=None):
     # Support query param for branch_id as well
     if branch_id is None:
@@ -527,20 +749,30 @@ def manage_stocks(request, branch_id=None, stock_id=None):
                 branch_id = int(q_branch_id)
             except ValueError:
                 branch_id = None
+    normalized_branch_id = normalize_branch_id_for_user(request, branch_id)
+    access = get_access_context(request)
+    if branch_id is not None and normalized_branch_id is None:
+        raise PermissionDenied('You do not have access to the requested branch workspace.')
+    if not access.is_admin and normalized_branch_id is None:
+        raise PermissionDenied('Your account does not have an assigned branch.')
+    branch_id = normalized_branch_id
+
     branch = None
-    branches_list = list(_branch_inventory_summary_queryset())
+    branches_list = list(_branch_inventory_summary_queryset(request))
     _attach_branch_sales_metrics(branches_list)
     branch_summary = None
     products = Products.objects.all().select_related('brand')
+    source_branches = list(scope_branches_queryset(request, Branches.objects.all()))
+    destination_branches = list(Branches.objects.order_by('name'))
     if branch_id:
-        branch = get_object_or_404(Branches, pk=branch_id)
+        branch = get_object_or_404(scope_branches_queryset(request, Branches.objects.all()), pk=branch_id)
         branch_summary = next((branch_item for branch_item in branches_list if branch_item.id == branch.id), None)
         stocks = StockLevel.objects.filter(branch=branch).select_related('product', 'product__brand')
     else:
         stocks = StockLevel.objects.none()
 
     if stock_id:
-        stock = get_object_or_404(StockLevel, pk=stock_id, branch=branch) if branch else get_object_or_404(StockLevel, pk=stock_id)
+        stock = get_object_or_404(StockLevel, pk=stock_id, branch=branch, is_active=True) if branch else get_object_or_404(StockLevel, pk=stock_id, is_active=True)
         modal_title = "Edit Stock"
         form_action = reverse('edit_stock', args=[stock.pk])
         editing = True
@@ -559,14 +791,19 @@ def manage_stocks(request, branch_id=None, stock_id=None):
             selected_product_id = None
 
     context = {
+        'current_role': access.role,
         'branch': branch,
         'branches': branches_list,
+        'source_branches': source_branches,
+        'destination_branches': destination_branches,
         'stocks': stocks,
         'modal_title': modal_title,
         'form_action': form_action,
         'editing': editing,
         'stock': stock,
         'products': products,
+        'can_choose_source_branch': access.is_admin,
+        'can_view_all_branches_reports': access.is_admin,
         'selected_product_id': selected_product_id,
         'selected_txn_type': request.GET.get('type', '') if request.GET.get('type', '') in ['IN', 'OUT', 'BACKLOAD'] else '',
         'selected_date_from': request.GET.get('date_from', ''),
@@ -583,8 +820,15 @@ def manage_stocks(request, branch_id=None, stock_id=None):
     return render(request, 'html/manage-stocks.html', context)
 
 @login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER, require_branch_assignment=True)
 def stock_history(request):
     params = request.GET.copy()
+    access = get_access_context(request)
+    if not access.is_admin and access.assigned_branch_id:
+        if params.get('branch_id') and str(params.get('branch_id')) != str(access.assigned_branch_id):
+            params['branch_id'] = str(access.assigned_branch_id)
+        elif not params.get('branch_id'):
+            params['branch_id'] = str(access.assigned_branch_id)
     params['stocks_section'] = 'transaction-log'
     url = reverse('manage_stocks')
     query = params.urlencode()
@@ -595,8 +839,15 @@ def stock_history(request):
     return redirect(url)
 
 @login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER, require_branch_assignment=True)
 def low_stock_alerts(request):
     params = request.GET.copy()
+    access = get_access_context(request)
+    if not access.is_admin and access.assigned_branch_id:
+        if params.get('branch_id') and str(params.get('branch_id')) != str(access.assigned_branch_id):
+            params['branch_id'] = str(access.assigned_branch_id)
+        elif not params.get('branch_id'):
+            params['branch_id'] = str(access.assigned_branch_id)
     branch_id = params.get('branch_id')
 
     if branch_id:
@@ -615,10 +866,19 @@ def low_stock_alerts(request):
     return redirect(url)
 
 @login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER, require_branch_assignment=True)
 def summary_reports(request):
     params = request.GET.copy()
     reports_section = params.get('reports_section', 'current-summary')
     branch_id = params.get('branch_id')
+    access = get_access_context(request)
+    if not access.is_admin and access.assigned_branch_id:
+        if branch_id and str(branch_id) != str(access.assigned_branch_id):
+            branch_id = str(access.assigned_branch_id)
+            params['branch_id'] = branch_id
+        elif not branch_id:
+            branch_id = str(access.assigned_branch_id)
+            params['branch_id'] = branch_id
 
     if branch_id:
         section_map = {
@@ -642,6 +902,16 @@ def summary_reports(request):
         }
         return redirect(f"{url}{anchor_map.get(stocks_section, '#stocks-on-hand')}")
 
+    if not access.is_admin:
+        params['branch_id'] = str(access.assigned_branch_id)
+        params['stocks_section'] = 'stocks-on-hand'
+        params.pop('reports_section', None)
+        url = reverse('manage_stocks')
+        query = params.urlencode()
+        if query:
+            url = f'{url}?{query}'
+        return redirect(f'{url}#stocks-on-hand')
+
     url = reverse('all_branches_view')
     query = params.urlencode()
     if query:
@@ -649,6 +919,7 @@ def summary_reports(request):
     return redirect(url)
 
 @login_required
+@role_required(ROLE_ADMIN)
 def all_branches_view(request):
     branches_list = Branches.objects.all().order_by('name')
     products = Products.objects.all().select_related('brand').order_by('product_name')
@@ -695,24 +966,42 @@ def all_branches_view(request):
     )
 
 @login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER, require_branch_assignment=True)
 def daily_sales_report(request):
+    access = get_access_context(request)
+    if access.is_admin:
+        params = request.GET.copy()
+        params['reports_section'] = 'daily-stock-out'
+        url = reverse('all_branches_view')
+        query = params.urlencode()
+        if query:
+            url = f'{url}?{query}'
+        return redirect(url)
+
     params = request.GET.copy()
-    params['reports_section'] = 'daily-stock-out'
-    url = reverse('all_branches_view')
+    params['branch_id'] = str(access.assigned_branch_id)
+    params['stocks_section'] = 'daily-sales'
+    url = reverse('manage_stocks')
     query = params.urlencode()
     if query:
         url = f'{url}?{query}'
-    return redirect(url)
+    return redirect(f'{url}#stocks-daily-sales')
 
 @login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER, require_branch_assignment=True)
 def dashboard(request):
-    active_stock_qs = StockLevel.objects.filter(is_active=True)
+    active_stock_qs = scope_branch_queryset(request, StockLevel.objects.filter(is_active=True), branch_field='branch_id')
     low_stock_qs = active_stock_qs.filter(quantity__lte=F('product__low_stock_limit'))
-    branches_list = list(_branch_inventory_summary_queryset())
+    branches_list = list(_branch_inventory_summary_queryset(request))
     _attach_branch_low_stock_items(branches_list, preview_limit=DASHBOARD_LOW_STOCK_PREVIEW_LIMIT)
+    products_count = (
+        Products.objects.filter(stocklevel__in=active_stock_qs)
+        .distinct()
+        .count()
+    )
     counts = {
         'branches': len(branches_list),
-        'products': Products.objects.count(),
+        'products': products_count,
         'stock_items': active_stock_qs.count(),
         'total_quantity': active_stock_qs.aggregate(total=Sum('quantity'))['total'] or 0,
         'branches_with_low_stock': sum(1 for branch in branches_list if branch.low_stock_count),
@@ -796,6 +1085,8 @@ def account_change_password(request):
     request.user.save()
     return JsonResponse({'success': True, 'message': 'Password changed. Please login again.'})
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER, json_response=True, require_branch_assignment=True)
 def movement_data(request):
     branch_id = request.GET.get('branch_id')
     product_id = request.GET.get('product_id')
@@ -805,10 +1096,18 @@ def movement_data(request):
     date_to = request.GET.get('date_to')
 
     qs = StockMovement.objects.select_related('branch', 'related_branch', 'product', 'product__brand', 'handled_by').all()
+    qs = scope_branch_queryset(request, qs, branch_field='branch_id')
+
     if transaction_group_id:
         qs = qs.filter(transaction_group_id=transaction_group_id)
     if branch_id:
-        qs = qs.filter(branch__id=branch_id)
+        try:
+            branch_id_int = int(branch_id)
+        except ValueError:
+            return JsonResponse({'success': False, 'message': 'Invalid branch filter.'}, status=400)
+        if not can_access_branch(request, branch_id_int):
+            return _json_forbidden('You do not have access to the selected branch.')
+        qs = qs.filter(branch__id=branch_id_int)
     if product_id:
         qs = qs.filter(product__id=product_id)
     if txn_type in ['IN', 'OUT', 'BLO', 'BLI']:
@@ -845,15 +1144,20 @@ def movement_data(request):
     return JsonResponse({'data': data})
 
 @login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER, json_response=True, require_branch_assignment=True)
 def summary_report_data(request):
     group_by = request.GET.get('group_by')
     branch_id = request.GET.get('branch_id')
     qs = StockLevel.objects.select_related('product', 'product__brand', 'product__category')
+    qs = scope_branch_queryset(request, qs, branch_field='branch_id')
     if branch_id:
         try:
-            qs = qs.filter(branch__id=int(branch_id))
+            branch_id_int = int(branch_id)
         except ValueError:
             return JsonResponse({'success': False, 'message': 'Invalid branch filter.'}, status=400)
+        if not can_access_branch(request, branch_id_int):
+            return _json_forbidden('You do not have access to the selected branch.')
+        qs = qs.filter(branch__id=branch_id_int)
 
     value_expr = ExpressionWrapper(
         F('quantity') * F('product__unit_price'),
@@ -931,6 +1235,7 @@ def summary_report_data(request):
     return JsonResponse({'success': False, 'message': 'Invalid report group.'}, status=400)
 
 @login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER, json_response=True, require_branch_assignment=True)
 def daily_sales_data(request):
     branch_id = request.GET.get('branch_id')
     product_id = request.GET.get('product_id')
@@ -938,11 +1243,15 @@ def daily_sales_data(request):
     date_to = request.GET.get('date_to')
 
     qs = StockMovement.objects.select_related('branch', 'product', 'product__brand').filter(transaction_type='OUT')
+    qs = scope_branch_queryset(request, qs, branch_field='branch_id')
     if branch_id:
         try:
-            qs = qs.filter(branch__id=int(branch_id))
+            branch_id_int = int(branch_id)
         except ValueError:
             return JsonResponse({'success': False, 'message': 'Invalid branch filter.'}, status=400)
+        if not can_access_branch(request, branch_id_int):
+            return _json_forbidden('You do not have access to the selected branch.')
+        qs = qs.filter(branch__id=branch_id_int)
     if product_id:
         try:
             qs = qs.filter(product__id=int(product_id))
@@ -979,9 +1288,10 @@ def daily_sales_data(request):
         .order_by('-sale_date', 'branch__name', 'product__product_name')
     )
 
+    stock_levels_qs = scope_branch_queryset(request, StockLevel.objects.all(), branch_field='branch_id')
     stock_map = {
         (row['branch_id'], row['product_id']): row['quantity']
-        for row in StockLevel.objects.values('branch_id', 'product_id', 'quantity')
+        for row in stock_levels_qs.values('branch_id', 'product_id', 'quantity')
     }
     for row in data:
         branch_key = row['branch__id']
@@ -996,6 +1306,7 @@ def daily_sales_data(request):
     return JsonResponse({'data': data})
 
 @login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER, json_response=True, require_branch_assignment=True)
 def transfer_report_data(request):
     branch_id = request.GET.get('branch_id')
     product_id = request.GET.get('product_id')
@@ -1010,12 +1321,23 @@ def transfer_report_data(request):
         'handled_by',
     ).filter(transaction_type='BLO')
 
+    access = get_access_context(request)
+    if access.is_admin:
+        pass
+    elif access.allowed_branch_ids:
+        allowed_ids = list(access.allowed_branch_ids)
+        qs = qs.filter(Q(branch_id__in=allowed_ids) | Q(related_branch_id__in=allowed_ids))
+    else:
+        qs = qs.none()
+
     if branch_id:
         try:
             branch_value = int(branch_id)
-            qs = qs.filter(Q(branch__id=branch_value) | Q(related_branch__id=branch_value))
         except ValueError:
             return JsonResponse({'success': False, 'message': 'Invalid branch filter.'}, status=400)
+        if not can_access_branch(request, branch_value):
+            return _json_forbidden('You do not have access to the selected branch.')
+        qs = qs.filter(Q(branch__id=branch_value) | Q(related_branch__id=branch_value))
     if product_id:
         try:
             qs = qs.filter(product__id=int(product_id))
@@ -1061,8 +1383,9 @@ def transfer_report_data(request):
     return JsonResponse({'data': data})
 
 @login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER, json_response=True, require_branch_assignment=True)
 def stock_data(request, branch_id=None):
-    qs = StockLevel.objects.all()
+    qs = scope_branch_queryset(request, StockLevel.objects.all(), branch_field='branch_id')
     if branch_id is None:
         q_branch_id = request.GET.get('branch_id')
         if q_branch_id:
@@ -1070,6 +1393,10 @@ def stock_data(request, branch_id=None):
                 branch_id = int(q_branch_id)
             except ValueError:
                 branch_id = None
+    normalized_branch_id = normalize_branch_id_for_user(request, branch_id)
+    if branch_id is not None and normalized_branch_id is None:
+        return _json_forbidden('You do not have access to the selected branch.')
+    branch_id = normalized_branch_id
     if branch_id:
         qs = qs.filter(branch__id=branch_id)
     # Optional filter by product id
@@ -1168,10 +1495,14 @@ def _build_backload_remarks(base_remarks, source_branch, destination_branch, dir
     )
     return f"{route_note}. {base_remarks}".strip() if base_remarks else route_note
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER, json_response=True, require_branch_assignment=True)
 def add_stock(request):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Invalid request method.'}, status=405)
 
+    branch_raw = request.POST.get('branch')
+    product_raw = request.POST.get('product')
     try:
         branch_id = int(request.POST.get('branch')) if request.POST.get('branch') else None
         related_branch_id = int(request.POST.get('related_branch')) if request.POST.get('related_branch') else None
@@ -1185,7 +1516,9 @@ def add_stock(request):
     if not branch_id or not product_id or transaction_type not in ['IN', 'OUT', 'BACKLOAD'] or quantity <= 0:
         return JsonResponse({'success': False, 'message': 'Missing or invalid fields.'}, status=400)
 
-    branch = get_object_or_404(Branches, pk=branch_id)
+    if not can_access_branch(request, branch_id):
+        return _json_forbidden('You do not have access to the selected source branch.')
+    branch = get_object_or_404(scope_branches_queryset(request, Branches.objects.all()), pk=branch_id)
     product = get_object_or_404(Products, pk=product_id)
     related_branch = None
     if transaction_type == 'BACKLOAD':
@@ -1196,13 +1529,7 @@ def add_stock(request):
         related_branch = get_object_or_404(Branches, pk=related_branch_id)
 
     # Determine handler from session if available
-    handled_by = None
-    user_id = request.session.get('user_id')
-    if user_id:
-        try:
-            handled_by = Users.objects.get(pk=user_id)
-        except Users.DoesNotExist:
-            handled_by = None
+    handled_by = get_request_app_user(request)
 
     try:
         with transaction.atomic():
@@ -1263,8 +1590,12 @@ def add_stock(request):
         return JsonResponse({'success': True, 'message': 'Transfer recorded successfully.'})
     return JsonResponse({'success': True, 'message': 'Stock action recorded successfully.'})
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, json_response=True, require_branch_assignment=True)
 def edit_stock(request, pk):
     movement = get_object_or_404(StockMovement, pk=pk)
+    if movement.branch_id and not can_access_branch(request, movement.branch_id):
+        return _json_forbidden('You do not have access to this stock transaction.')
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Invalid request method.'}, status=405)
     if movement.transaction_group_id or movement.transaction_type in ['BLO', 'BLI']:
@@ -1274,18 +1605,25 @@ def edit_stock(request, pk):
         )
 
     try:
-        branch_id = int(request.POST.get('branch')) if request.POST.get('branch') else None
-        product_id = int(request.POST.get('product')) if request.POST.get('product') else None
+        branch_id = int(branch_raw) if branch_raw else None
+        product_id = int(product_raw) if product_raw else None
         transaction_type = request.POST.get('transaction_type')
         quantity = int(request.POST.get('quantity') or 0)
         remarks = request.POST.get('remarks') or ''
     except (TypeError, ValueError):
         return JsonResponse({'success': False, 'message': 'Invalid input values.'}, status=400)
 
+    try:
+        branch_id = _resolve_branch_scope(request, branch_id)
+    except PermissionDenied as e:
+        return _json_or_forbidden(request, str(e))
+
     if not branch_id or not product_id or transaction_type not in ['IN', 'OUT'] or quantity <= 0:
         return JsonResponse({'success': False, 'message': 'Missing or invalid fields.'}, status=400)
 
-    branch = get_object_or_404(Branches, pk=branch_id)
+    if not can_access_branch(request, branch_id):
+        return _json_forbidden('You do not have access to the selected branch.')
+    branch = get_object_or_404(scope_branches_queryset(request, Branches.objects.all()), pk=branch_id)
     product = get_object_or_404(Products, pk=product_id)
     old_branch = movement.branch
     old_product = movement.product
@@ -1321,8 +1659,12 @@ def edit_stock(request, pk):
 
     return JsonResponse({'success': True, 'message': 'Stock movement updated successfully.'})
 
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, json_response=True, require_branch_assignment=True)
 def delete_stock(request, pk):
     movement = get_object_or_404(StockMovement, pk=pk)
+    if movement.branch_id and not can_access_branch(request, movement.branch_id):
+        return _json_forbidden('You do not have access to this stock transaction.')
     branch = movement.branch
     product = movement.product
     revert_type = 'OUT' if _is_incoming_transaction(movement.transaction_type) else 'IN'
@@ -1332,6 +1674,9 @@ def delete_stock(request, pk):
                 grouped_movements = list(
                     StockMovement.objects.filter(transaction_group_id=movement.transaction_group_id).select_related('branch', 'product')
                 )
+                for grouped_movement in grouped_movements:
+                    if grouped_movement.branch_id and not can_access_branch(request, grouped_movement.branch_id):
+                        return _json_forbidden('You do not have access to one or more transactions in this transfer group.')
                 touched_pairs = set()
                 for grouped_movement in grouped_movements:
                     grouped_revert_type = 'OUT' if _is_incoming_transaction(grouped_movement.transaction_type) else 'IN'
@@ -1356,3 +1701,15 @@ def delete_stock(request, pk):
     except ValueError as e:
         return JsonResponse({'success': False, 'message': f'Failed to revert movement: {e}'}, status=400)
     return JsonResponse({'success': True, 'message': 'Stock action deleted successfully.'})
+
+
+def error_403(request, exception):
+    return render(request, 'html/errors/403.html', status=403)
+
+
+def error_404(request, exception):
+    return render(request, 'html/errors/404.html', status=404)
+
+
+def error_500(request):
+    return render(request, 'html/errors/500.html', status=500)

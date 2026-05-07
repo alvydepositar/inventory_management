@@ -1,8 +1,8 @@
-# Color Smile Inventory Management System
+﻿# Color Smile Inventory Management System
 ## User Guide and User Manual
 
-Document version: 1.0  
-Document date: April 22, 2026
+Document version: 1.2  
+Document date: May 2, 2026
 
 ---
 
@@ -11,6 +11,8 @@ Document date: April 22, 2026
 | Version | Date | Summary |
 | --- | --- | --- |
 | 1.0 | April 22, 2026 | Full rewrite aligned to current application UI and workflows |
+| 1.1 | April 27, 2026 | Language updated to be more user-friendly and less technical |
+| 1.2 | May 2, 2026 | Role permissions and branch-based access updated and enforced |
 
 ---
 
@@ -18,28 +20,28 @@ Document date: April 22, 2026
 
 ## 1. Overview
 
-The Color Smile Inventory Management System is a web-based platform used to manage products, suppliers, branches, stock balances, and stock movements.
+The Color Smile Inventory Management System is an online system used to manage products, suppliers, branches, stock balances, and stock movements.
 
-The system is designed to:
+The system helps your team:
 
 1. Keep inventory records accurate and up to date.
 2. Track stock movement by branch.
-3. Reduce manual errors in stock recording.
-4. Provide branch-level and all-branch reporting.
+3. Reduce manual mistakes in stock recording.
+4. Provide reports per branch and across all branches.
 
 ## 2. Scope and Key Capabilities
 
-The system supports the following operational areas:
+The system supports these day-to-day tasks:
 
-1. User account management.
-2. Product master data maintenance.
+1. User account setup and maintenance.
+2. Product record maintenance.
 3. Category and brand maintenance.
 4. Supplier maintenance.
 5. Branch maintenance.
-6. Branch-level stock operations.
-7. Branch-level low stock monitoring.
-8. Daily sales and transfer reporting.
-9. Transaction log filtering and export.
+6. Branch stock activities.
+7. Low stock monitoring per branch.
+8. Daily sales and transfer review.
+9. Activity history filtering and export.
 
 ## 3. Roles and Responsibilities
 
@@ -55,39 +57,47 @@ Primary responsibilities:
 
 1. Maintain user accounts and user roles.
 2. Maintain products, categories, brands, suppliers, and branches.
-3. Review stock records and reports for data quality.
-4. Monitor low stock alerts and inventory health.
+3. Review stock records and reports for record quality.
+4. Monitor low stock alerts and overall inventory condition.
 
 ### 3.2 User
 
 Primary responsibilities:
 
-1. Record stock actions accurately.
-2. Review branch stock balances.
-3. Use filters and exports for daily operations.
-4. Verify product, branch, and quantity before submission.
+1. Record stock activities accurately.
+2. Review stock balances for the assigned branch.
+3. Use filters and exports for daily work.
+4. Verify product, branch, and quantity before saving.
 
 ### 3.3 Branch Manager
 
 Primary responsibilities:
 
-1. Monitor branch-level stock balances and alerts.
+1. Monitor stock balances and alerts for the assigned branch.
 2. Review branch daily sales and branch transfers.
-3. Validate transaction history and balance changes.
-4. Coordinate stock movement between branches.
+3. Maintain product, category, brand, and supplier records (add/edit).
+4. Correct stock transactions for the assigned branch when needed.
 
-## 4. Access Matrix (Recommended)
+### 3.4 Branch Assignment Rules
+
+1. `User` and `Branch Manager` accounts must be assigned to one branch.
+2. Non-admin accounts can only access their assigned branch data.
+3. `Admin` accounts are not branch-limited and can access all branches.
+
+## 4. Permissions Guide (Recommended)
 
 | Function | Admin | User | Branch Manager |
 | --- | --- | --- | --- |
 | Manage users | Yes | No | No |
-| Maintain products and references | Yes | Yes | Yes |
-| Record stock actions | Yes | Yes | Yes |
-| View branch reports | Yes | Yes | Yes |
-| View all-branch reports | Yes | Yes | Yes |
+| Maintain products, categories, brands, suppliers | Yes (Add/Edit/Delete) | No | Yes (Add/Edit only) |
+| Maintain branch records | Yes | No | No |
+| Record stock activities | Yes | Yes | Yes |
+| Correct/delete stock activities | Yes | No | Yes (Assigned branch only) |
+| View branch reports | Yes | Yes (Assigned branch only) | Yes (Assigned branch only) |
+| View all-branch reports | Yes | No | No |
 | Export reports | Yes | Yes | Yes |
 
-Note: Final access can be adjusted by deployment policy.
+Note: Exports for non-admin accounts only include records within the assigned branch scope.
 
 ## 5. Navigation Overview
 
@@ -99,31 +109,84 @@ Main menu groups:
 4. Inventory Management
 5. Profile
 
-Core workflow pattern:
+Typical workflow:
 
-1. Select workspace from menu.
-2. Filter to the right branch, product, action, and date.
-3. Perform action or review records.
-4. Export only after filters are finalized.
+1. Open the correct menu and workspace.
+2. Apply the right branch, product, activity, and date filters.
+3. Perform your action or review records.
+4. Export only after your filters are final.
 
 ## 6. General Usage Guidelines
 
-1. Confirm the branch and product before saving stock actions.
-2. Verify quantity before submitting release or transfer actions.
-3. Use remarks for traceability, especially for unusual transactions.
-4. Review transaction log after important inventory updates.
-5. Reconcile system records with physical counts regularly.
+1. Confirm the branch and product before saving stock activities.
+2. Verify quantity before submitting release or transfer activities.
+3. Use notes for traceability, especially for unusual entries.
+4. Review activity history after important updates.
+5. Compare system records with physical counts regularly.
+
+---
+
+## System Features
+
+The Color Smile Inventory Management System provides comprehensive tools for managing your inventory operations. Here are the key features:
+
+### Dashboard
+- Real-time overview of inventory status across all branches
+- Quick access to key metrics: total products, stock on hand, low stock alerts
+- Per-branch summary cards with branch-specific inventory status
+- Direct links to frequently used functions
+
+### Product Management
+- Maintain product catalog with details like name, description, and pricing
+- Organize products by categories and brands
+- Track product status and low stock thresholds
+- Add, edit, or delete products based on user role
+
+### Stock Management
+- Record stock movements including receipts, releases, and transfers between branches
+- Track real-time stock balances at branch level
+- Maintain accurate stock history for audit and compliance
+- Support for stock adjustments and corrections
+
+### Branch Management
+- Set up and manage multiple branch locations
+- Branch-level access control and data isolation
+- Branch-specific stock tracking and reporting
+- Assign users to specific branches for controlled access
+
+### Stock Monitoring
+- Automated low stock alerts per branch
+- Monitor stock levels in real time
+- View low stock items and take corrective actions
+- Alert notifications for inventory anomalies
+
+### Reporting and Analytics
+- Generate daily sales reports per branch
+- Track stock transfers between branches
+- Export reports for external use and analysis
+- Activity history with filtering and search capabilities
+
+### User and Access Management
+- Create and manage user accounts with role-based access
+- Assign users to branches and roles (Admin, User, Branch Manager)
+- Control permissions based on user roles
+- Maintain audit trails of user activities
+
+### Supplier Management
+- Maintain supplier records and contact information
+- Link suppliers to products for better supply chain tracking
+- Support for multiple supplier relationships
 
 ---
 
 ## Part B: User Manual
 
-## 1. Access and Authentication
+## 1. Access and Sign-In
 
 ### 1.1 Open the System
 
 1. Open Google Chrome or Microsoft Edge.
-2. Go to your assigned system URL.
+2. Go to your assigned system link.
 
 ### 1.2 Sign In
 
@@ -134,12 +197,12 @@ Core workflow pattern:
 
 ### 1.3 Invalid Login
 
-If credentials are invalid, the system shows an error message.
+If your login details are not accepted, the system shows an error message.
 
-Action:
+What to do:
 
-1. Re-enter credentials carefully.
-2. If still blocked, contact your administrator.
+1. Re-enter your login details carefully.
+2. If access still fails, contact your administrator.
 
 ### 1.4 Log Out
 
@@ -195,7 +258,8 @@ Per-Branch Summary:
 3. Enter User Name and Email.
 4. Enter Password.
 5. Select Role.
-6. Click Submit.
+6. If role is `User` or `Branch Manager`, select Assigned Branch.
+7. Click Submit.
 
 ### 4.3 Edit User
 
@@ -211,7 +275,7 @@ Per-Branch Summary:
 3. Click Delete.
 4. Confirm deletion.
 
-## 5. Inventory Master Data
+## 5. Inventory Setup Records
 
 ## 5.1 Product Catalog
 
@@ -335,6 +399,8 @@ Menu path:
 
 ## 5.4 Branch Management
 
+Role scope: Admin only.
+
 Menu path:
 
 1. Inventory Management
@@ -373,7 +439,7 @@ Menu path:
 2. Click the package icon.
 3. The system opens the selected branch Stocks workspace.
 
-## 6. Stocks Workspace (Branch-Level)
+## 6. Stocks Workspace (Per Branch)
 
 Entry:
 
@@ -386,7 +452,12 @@ Main branch workspace tabs:
 2. Daily Sales
 3. Branch Transfers
 4. Low Stocks
-5. Transaction Log (opened by history links or full-tab link)
+5. Activity History (opened by history links or full-tab link)
+
+Access notes:
+
+1. Non-admin users are limited to their assigned branch workspace.
+2. Admin can open all branch workspaces.
 
 ## 6.1 Stocks On Hand
 
@@ -396,11 +467,11 @@ Use this tab to:
 2. Filter by product.
 3. Use Record Action or View Log actions.
 
-### Record stock action from Stocks On Hand
+### Record stock activity from Stocks On Hand
 
 1. Click Record Action or Record Stock Action.
 2. In Choose Action, select one action type.
-3. Action type options are Receive Stock, Release Stock, and Transfer to Branch.
+3. Action options are Receive Stock, Release Stock, and Transfer to Branch.
 4. Select Product.
 5. Select Branch.
 6. If Transfer to Branch is selected, select To Branch.
@@ -408,10 +479,10 @@ Use this tab to:
 8. Optional: enter Notes.
 9. Click Receive Stock, Release Stock, or Transfer Stock.
 
-Validation rules:
+Important checks:
 
 1. Transfer destination must be different from source branch.
-2. Release and transfer quantities cannot exceed available balance.
+2. Release and transfer quantities cannot be greater than available balance.
 
 ## 6.2 Low Stocks
 
@@ -419,7 +490,7 @@ Use this tab to:
 
 1. View products at or below low stock limit.
 2. Filter by product.
-3. Perform quick refill or view log.
+3. Perform quick refill or view history.
 
 Quick refill flow:
 
@@ -444,11 +515,11 @@ Use this tab to:
 2. Filter by product and date range.
 3. Review transfer metrics and transfer list.
 
-## 6.5 Transaction Log
+## 6.5 Activity History
 
 Use this view to:
 
-1. Review transaction history with Before and Ending Balance values.
+1. Review stock activity with Before and Ending Balance values.
 2. Filter by product, action, and date range.
 3. Export filtered results.
 
@@ -466,12 +537,14 @@ Open methods:
 
 ## 7. All Branches Workspace
 
-Use this workspace for cross-branch analysis.
+Use this workspace for cross-branch review.
 
 Entry:
 
 1. Open Stocks.
 2. Open All Branches View.
+
+Note: This workspace is for `Admin` role only.
 
 Main tabs:
 
@@ -501,7 +574,7 @@ Capabilities:
 
 1. Filter by branch, product, and date or date range.
 2. Review released quantity and estimated value.
-3. Open related transaction history.
+3. Open related activity history.
 
 ## 7.3 Branch Transfers (All Branches)
 
@@ -525,18 +598,18 @@ Export formats:
 Export best practices:
 
 1. Apply branch, product, action, and date filters first.
-2. Verify the table view matches your intended report scope.
-3. Export only after confirming row set and date range.
+2. Verify the table view matches your report scope.
+3. Export only after confirming the selected rows and date range.
 
 ## 9. Data Field Glossary
 
-Transaction and stock terms:
+Stock and activity terms:
 
-1. Transaction ID: unique identifier of a stock action.
+1. Transaction ID: unique ID of a stock activity.
 2. Action: type of stock movement.
-3. Before: balance before the action.
-4. Ending Balance: balance after the action.
-5. Handled By: user who posted the action.
+3. Before: balance before the activity.
+4. Ending Balance: balance after the activity.
+5. Handled By: user who posted the activity.
 6. Remarks: free-text note for context.
 7. Low Stock Limit: minimum quantity threshold defined per product.
 8. Short By: quantity needed to reach low stock limit.
@@ -547,25 +620,25 @@ Transaction and stock terms:
 
 1. Check email or username format.
 2. Check password.
-3. Retry with correct credentials.
+3. Retry with correct login details.
 4. Contact admin if access still fails.
 
 ## 10.2 Password Change Failed
 
 1. Ensure current password is correct.
 2. Ensure new and confirm password match.
-3. Retry and re-login after success.
+3. Retry and sign in again after success.
 
 ## 10.3 Forgot Password Link
 
 1. The login page may show a Forgot Password link.
-2. If password reset is not available in your deployment, contact your administrator.
+2. If password reset is not available in your setup, contact your administrator.
 
-## 10.4 Cannot Submit Stock Action
+## 10.4 Cannot Submit Stock Activity
 
 1. Confirm required fields are filled.
 2. For transfer, choose a destination branch.
-3. For release or transfer, reduce quantity if balance is insufficient.
+3. For release or transfer, reduce quantity if balance is not enough.
 
 ## 10.5 Missing Records in Table
 
@@ -581,17 +654,19 @@ Transaction and stock terms:
 2. Confirm active table and tab.
 3. Re-export after adjusting filters.
 
-## 11. Security and Data Quality Notes
+## 11. Security and Record Quality Notes
 
-1. Do not share login credentials.
+1. Do not share login details.
 2. Log out when leaving shared devices.
-3. Use remarks for exceptional transactions.
-4. Reconcile system and physical counts on schedule.
-5. Escalate discrepancies immediately.
+3. Use notes for exceptional stock activities.
+4. Compare system and physical counts on schedule.
+5. Report discrepancies immediately.
 
-## 12. Appendix A: Route Index
+## 12. Appendix A: Page Link Reference
 
-| Screen | Route |
+Note: This section is mainly for admin/support reference.
+
+| Screen | Page Link |
 | --- | --- |
 | Login | `/` |
 | Dashboard | `/dashboard/` |
@@ -602,7 +677,7 @@ Transaction and stock terms:
 | Branch Management | `/branches/` |
 | Stocks Workspace | `/manage-stocks/` |
 | Branch Stocks Workspace | `/manage-stocks/<branch_id>/` |
-| Transaction Log redirect | `/stock-history/` |
+| Activity History redirect | `/stock-history/` |
 | All Branches View | `/all-branches-view/` |
 | Account | `/account/` |
 | Log Out | `/logout/` |
@@ -610,7 +685,7 @@ Transaction and stock terms:
 ## 13. Appendix B: Quick Daily Checklist
 
 1. Open Dashboard and review low stock cards.
-2. Enter branch workspace and post stock actions.
+2. Enter branch workspace and post stock activities.
 3. Check Low Stocks tab and refill critical items.
-4. Review Transaction Log for correctness.
+4. Review Activity History for correctness.
 5. Export required reports after applying filters.
