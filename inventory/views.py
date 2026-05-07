@@ -1701,3 +1701,15 @@ def delete_stock(request, pk):
     except ValueError as e:
         return JsonResponse({'success': False, 'message': f'Failed to revert movement: {e}'}, status=400)
     return JsonResponse({'success': True, 'message': 'Stock action deleted successfully.'})
+
+
+def error_403(request, exception):
+    return render(request, 'html/errors/403.html', status=403)
+
+
+def error_404(request, exception):
+    return render(request, 'html/errors/404.html', status=404)
+
+
+def error_500(request):
+    return render(request, 'html/errors/500.html', status=500)
