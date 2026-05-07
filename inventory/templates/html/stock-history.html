@@ -1,6 +1,6 @@
 {% extends 'html/base.html' %}
 
-{% block title %}Stock History{% endblock %}
+{% block title %}Transaction Log{% endblock %}
 
 {% block content %}
 <div class="content-wrapper">
@@ -12,10 +12,10 @@
     {% endif %}
 
     <div class="d-flex align-items-center justify-content-between mb-3">
-      <h4 class="fw-bold m-0">Stock Movements</h4>
+      <h4 class="fw-bold m-0">Transaction Log</h4>
     </div>
 
-    <div class="card mb-3 p-3">
+    <div class="card table-blend-shell mb-3 p-3">
       <div class="row g-2 align-items-end">
         <div class="col-12 col-md-3">
           <label class="form-label" for="mvBranch">Branch</label>
@@ -31,26 +31,32 @@
           <select id="mvProduct" class="form-select">
             <option value="">All Products</option>
             {% for p in products %}
-              <option value="{{ p.id }}">{{ p.product_name }} ({{ p.brand.name }})</option>
+              <option value="{{ p.id }}" {% if selected_product_id == p.id %}selected{% endif %}>{{ p.product_name }} ({{ p.brand.name }})</option>
             {% endfor %}
           </select>
         </div>
         <div class="col-6 col-md-2">
-          <label class="form-label" for="mvType">Type</label>
+          <label class="form-label" for="mvType">Action</label>
           <select id="mvType" class="form-select">
-            <option value="">All</option>
-            <option value="IN">IN</option>
-            <option value="OUT">OUT</option>
+            <option value="">All Actions</option>
+            <option value="IN" {% if selected_txn_type == 'IN' %}selected{% endif %}>Receive Stock</option>
+            <option value="OUT" {% if selected_txn_type == 'OUT' %}selected{% endif %}>Release Stock</option>
+            <option value="BACKLOAD" {% if selected_txn_type == 'BACKLOAD' %}selected{% endif %}>Transfer to Branch</option>
           </select>
         </div>
         <div class="col-12 col-md-4">
           <label class="form-label" for="mvDateRange">Date Range</label>
-          <input id="mvDateRange" class="form-control" placeholder="Select date range" />
+          <input
+            id="mvDateRange"
+            class="form-control"
+            placeholder="Select date range"
+            value="{% if selected_date_from and selected_date_to %}{{ selected_date_from }} to {{ selected_date_to }}{% elif selected_date_from %}{{ selected_date_from }}{% elif selected_date_to %}{{ selected_date_to }}{% endif %}"
+          />
         </div>
       </div>
     </div>
 
-    <div class="card">
+    <div class="card table-blend-shell">
       <div class="card-datatable table-responsive pt-0">
         <table class="movement-datatables-basic table">
           <thead>
@@ -58,11 +64,11 @@
               <th></th>
               <th>Date</th>
               <th>Txn ID</th>
-              <th>Type</th>
-              <th>Branch</th>
+              <th>Branch / Transfer Route</th>
               <th>Product</th>
-              <th>Qty</th>
-              <th>Balance</th>
+              <th>Before</th>
+              <th>Action</th>
+              <th>Ending Balance</th>
               <th>Handled By</th>
               <th>Remarks</th>
             </tr>

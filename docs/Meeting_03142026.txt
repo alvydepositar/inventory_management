@@ -1,0 +1,9 @@
+Alerts for low stock (No need to request per branch)
+Low stock limit per product 
+Sales per day, export and viewing of current balance
+Total per brand/items & individual items
+before -> added/out -> ending balance
+
+Soon:
+-- stocks that are used but not emptied.
+-- ex. white & black is used, black is not emptied. recorded as gray.(mixing)

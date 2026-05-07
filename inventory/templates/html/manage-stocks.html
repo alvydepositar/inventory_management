@@ -1,11 +1,9 @@
 {% extends 'html/base.html' %}
 
-{% block title %}Stock Management{% endblock %}
+{% block title %}Stocks{% endblock %}
 
 {% block content %}
-<!-- Content wrapper -->
 <div class="content-wrapper">
-  <!-- Content -->
   <div class="container-xxl flex-grow-1 container-p-y">
     <style>
       .scrollable-select {
@@ -18,130 +16,746 @@
     {% else %}
     <script>window.currentBranchId=null;</script>
     {% endif %}
-    
-    <div class="d-flex align-items-center justify-content-between mb-2">
-      <h4 class="fw-bold m-0">Stock Management</h4>
-      <a class="btn btn-outline-primary" href="{% url 'stock_history' %}{% if branch %}?branch_id={{ branch.id }}{% endif %}">
-        <i class="ti ti-history me-1"></i> View Stock History
-      </a>
+
+    <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
+      <div>
+        <h4 class="fw-bold m-0">Stocks</h4>
+        {% if branch %}
+          <div class="text-muted">Manage stocks, daily sales, and transfers for {{ branch.name }} from one workspace.</div>
+        {% else %}
+          <div class="text-muted">Open a branch workspace or review all-branches stocks, daily sales, and transfers from one page.</div>
+        {% endif %}
+      </div>
     </div>
 
-    <div class="card mb-3 p-3" aria-labelledby="stockFiltersLabel">
-      <div class="mb-2 text-muted" id="stockFiltersLabel">Filter by branch and product</div>
-      <form class="row g-2 align-items-end">
-        <div class="col-12 col-md-4 col-lg-4">
-          <label class="form-label" for="levelBranch">Branch</label>
-          <select id="levelBranch" class="form-select scrollable-select" aria-label="Branch filter">
-            <option value="">All Branches</option>
-            {% for b in branches %}
-              <option value="{{ b.id }}" {% if branch and branch.id == b.id %}selected{% endif %}>{{ b.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-12 col-md-4 col-lg-4">
-          <label class="form-label" for="levelProduct">Product</label>
-          <select id="levelProduct" class="form-select scrollable-select" aria-label="Product filter">
-            <option value="">All Products</option>
-            {% for p in products %}
-              <option value="{{ p.id }}">{{ p.product_name }} ({{ p.brand.name }})</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-12 col-md-4 col-lg-4 d-flex">
-          <button id="levelClearFilters" class="btn btn-outline-primary w-100 mt-auto" type="button" aria-label="Clear filters">Clear Filters</button>
-        </div>
-      </form>
+    {% if branch %}
+    <div class="d-flex align-items-center gap-2 mb-4">
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'manage_stocks' %}" aria-label="Back to all branches">
+        <i class="ti ti-arrow-left"></i>
+      </a>
+      <div><span class="text-muted small">Back to all branches</span></div>
+      <div class="d-flex flex-wrap gap-2 ms-auto">
+        <button type="button" class="btn btn-primary stock-quick-action" data-stock-action="IN">Receive</button>
+        <button type="button" class="btn btn-outline-primary stock-quick-action" data-stock-action="OUT">Release</button>
+        <button type="button" class="btn btn-outline-primary stock-quick-action" data-stock-action="BACKLOAD">Transfer</button>
+      </div>
     </div>
-    
-    <!-- DataTable with Buttons -->
-    <div class="card">
-      <div class="card-datatable table-responsive pt-0">
-        <table class="stock-datatables-basic table">
-          <thead>
-            <tr>
-              <th></th>
-              <th></th>
-              <th>ID</th>
-              <th>Branch</th>
-              <th>Product</th>
-              <th>Brand</th>
-              <th>Quantity</th>
-              <th>Stock Level</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-        </table>
+
+    <div class="row g-3 mb-4">
+      <div class="col-12 col-md-6">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="text-muted">Daily Sales</div>
+            <div class="fs-4 fw-semibold">PHP {{ branch_daily_sales_value|floatformat:2 }}</div>
+            <div class="small text-muted">{{ branch_daily_sales_quantity }} item{{ branch_daily_sales_quantity|pluralize }} released today</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="text-muted">Total Sales</div>
+            <div class="fs-4 fw-semibold">PHP {{ branch_total_sales_value|floatformat:2 }}</div>
+            <div class="small text-muted">{{ branch_total_sales_quantity }} item{{ branch_total_sales_quantity|pluralize }} released overall</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mb-4">
+      <div class="text-muted small text-uppercase mb-2">Branch Workspace</div>
+      <ul class="nav row g-3 list-unstyled mb-0" id="stocksWorkspaceTabs" role="tablist">
+        <li class="nav-item col-12 col-lg-3" role="presentation">
+          <a class="nav-link report-choice-card {% if stocks_section == 'stocks-on-hand' or stocks_section == 'current-stocks' %}active{% endif %}" id="stocks-on-hand-tab" data-bs-toggle="tab" href="#stocks-on-hand" role="tab" aria-controls="stocks-on-hand" aria-selected="{% if stocks_section == 'stocks-on-hand' or stocks_section == 'current-stocks' %}true{% else %}false{% endif %}">
+            <span class="report-choice-icon"><i class="ti ti-clipboard-list"></i></span>
+            <span class="report-choice-title">Stocks On Hand</span>
+            <span class="report-choice-copy">Review current balances and record stock actions for {{ branch.name }}.</span>
+          </a>
+        </li>
+        <li class="nav-item col-12 col-lg-3" role="presentation">
+          <a class="nav-link report-choice-card {% if stocks_section == 'daily-sales' %}active{% endif %}" id="stocks-daily-sales-tab" data-bs-toggle="tab" href="#stocks-daily-sales" role="tab" aria-controls="stocks-daily-sales" aria-selected="{% if stocks_section == 'daily-sales' %}true{% else %}false{% endif %}">
+            <span class="report-choice-icon"><i class="ti ti-chart-bar"></i></span>
+            <span class="report-choice-title">Daily Sales</span>
+            <span class="report-choice-copy">Track released products by day with branch-specific sales totals.</span>
+          </a>
+        </li>
+        <li class="nav-item col-12 col-lg-3" role="presentation">
+          <a class="nav-link report-choice-card {% if stocks_section == 'branch-transfers' %}active{% endif %}" id="stocks-branch-transfers-tab" data-bs-toggle="tab" href="#stocks-branch-transfers" role="tab" aria-controls="stocks-branch-transfers" aria-selected="{% if stocks_section == 'branch-transfers' %}true{% else %}false{% endif %}">
+            <span class="report-choice-icon"><i class="ti ti-arrows-left-right"></i></span>
+            <span class="report-choice-title">Branch Transfers</span>
+            <span class="report-choice-copy">Check items moved between branches and view related transfer history.</span>
+          </a>
+        </li>
+        <li class="nav-item col-12 col-lg-3" role="presentation">
+          <a class="nav-link report-choice-card {% if stocks_section == 'low-stock' %}active{% endif %}" id="stocks-low-stock-tab" data-bs-toggle="tab" href="#stocks-low-stock" role="tab" aria-controls="stocks-low-stock" aria-selected="{% if stocks_section == 'low-stock' %}true{% else %}false{% endif %}">
+            <span class="report-choice-icon"><i class="ti ti-alert-triangle"></i></span>
+            <span class="report-choice-title">Low Stocks</span>
+            <span class="report-choice-copy">See products at or below threshold so urgent restocking can be prioritized.</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+
+    <div class="tab-content" id="stocksWorkspaceContent">
+      <div class="tab-pane fade {% if stocks_section == 'stocks-on-hand' or stocks_section == 'current-stocks' %}show active{% endif %}" id="stocks-on-hand" role="tabpanel" aria-labelledby="stocks-on-hand-tab" tabindex="0">
+        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+          <div>
+            <h5 class="fw-semibold mb-1">{{ branch.name }} Stocks On Hand</h5>
+            <div class="text-muted">Review balances and record stock actions for {{ branch.name }}.</div>
+          </div>
+        </div>
+
+        <div class="card table-blend-shell">
+          <div class="card-body" aria-labelledby="stockFiltersLabel">
+            <div class="mb-2 text-muted" id="stockFiltersLabel">Filter current stock by product</div>
+            <div class="row g-2 align-items-end">
+              <div class="col-12 col-md-8">
+                <label class="form-label" for="levelProduct">Product</label>
+                <select id="levelProduct" class="form-select" aria-label="Product filter">
+                  <option value="">All Products</option>
+                  {% for p in products %}
+                    <option value="{{ p.id }}" {% if selected_product_id == p.id %}selected{% endif %}>{{ p.product_name }} ({{ p.brand.name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-12 col-md-4">
+                <button id="levelClearFilters" class="btn btn-outline-primary w-100" type="button" aria-label="Clear current stock filters">Clear Filters</button>
+              </div>
+            </div>
+          </div>
+          <div class="card-datatable table-responsive pt-0">
+            <table class="stock-datatables-basic table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th></th>
+                  <th>ID</th>
+                  <th>Product</th>
+                  <th>Brand</th>
+                  <th>Quantity</th>
+                  <th>Stock Level</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+            </table>
+          </div>
         </div>
       </div>
 
-    <!-- Modal to add/edit record -->
-    <div class="modal fade" id="stockModal" tabindex="-1" aria-labelledby="stockModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="stockModalLabel">{{ modal_title }}</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="stockForm" class="row g-3 fv-plugins-bootstrap5 fv-plugins-framework" method="POST" action="{% url 'add_stock' %}" novalidate>
-                        {% csrf_token %}
-                        {% if editing %}
-                            <input type="hidden" name="stock_id" value="{{ stock.id }}">
-                        {% endif %}
-                        <div class="col-12 col-md-6">
-                            <label class="form-label" for="stockType">Type of Transaction</label>
-                            <select id="stockType" name="transaction_type" class="form-select" required aria-required="true">
-                                <option value="IN" {% if editing and stock.transaction_type == 'IN' %}selected{% endif %}>Stock In</option>
-                                <option value="OUT" {% if editing and stock.transaction_type == 'OUT' %}selected{% endif %}>Stock Out</option>
-                            </select>
-                            <div class="fv-plugins-message-container invalid-feedback"></div>
-                        </div>
-                        <!-- Handled By will be set by server from the logged-in session user. -->
-                        <div class="col-12 col-md-4">
-                            <label class="form-label" for="stockProduct">Product</label>
-                            <select id="stockProduct" name="product" class="form-select" required aria-required="true">
-                                <option value="" disabled selected>Select Product</option>
-                                {% for product in products %}
-                                    <option value="{{ product.id }}" {% if editing and stock.product.id == product.id %}selected{% endif %}>{{ product.product_name }} ({{ product.brand.name }})</option>
-                                {% endfor %}
-                            </select>
-                            <div class="fv-plugins-message-container invalid-feedback"></div>
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <label class="form-label" for="stockBranch">Branch</label>
-                            <select id="stockBranch" name="branch" class="form-select" required aria-required="true">
-                                <option value="" disabled selected>Select Branch</option>
-                                {% for branch in branches %}
-                                    <option value="{{ branch.id }}" {% if editing and stock.branch.id == branch.id %}selected{% endif %}>{{ branch.name }}</option>
-                                {% endfor %}
-                            </select>
-                            <div class="fv-plugins-message-container invalid-feedback"></div>
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <label class="form-label" for="stockProductQuantity">Quantity</label>
-                            <input type="number" inputmode="numeric" min="1" step="1" id="stockProductQuantity" name="quantity" class="form-control" placeholder="Quantity" value="{% if editing %}{{ stock.quantity }}{% endif %}" required aria-required="true">
-                            <div class="fv-plugins-message-container invalid-feedback"></div>
-                        </div>
-                        <div class="col-12 col-md-12">
-                            <label class="form-label" for="stockRemarks">Remarks</label>
-                            <textarea id="stockRemarks" name="remarks" class="form-control" placeholder="Remarks" rows="3">{% if editing %}{{ stock.remarks }}{% endif %}</textarea>
-                            <div class="fv-plugins-message-container invalid-feedback"></div>
-                        </div>
-
-                        <div class="col-12 text-center">
-                            <button type="submit" id="addSupplierBtn" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Submit</button>
-                            <button type="button" class="btn btn-label-secondary waves-effect" data-bs-dismiss="modal" aria-label="Close">
-                                Cancel
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+      <div class="tab-pane fade {% if stocks_section == 'daily-sales' %}show active{% endif %}" id="stocks-daily-sales" role="tabpanel" aria-labelledby="stocks-daily-sales-tab" tabindex="0">
+        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+          <div>
+            <h5 class="fw-semibold mb-1">{{ branch.name }} Daily Sales</h5>
+            <div class="text-muted">This report is based on released stock transactions recorded in the system.</div>
+          </div>
         </div>
+
+        <div id="dailySalesReportFilters" class="card mb-4" aria-labelledby="dailySalesReportFiltersLabel">
+          <div class="card-body">
+            <div class="text-muted small mb-2" id="dailySalesReportFiltersLabel">Filter this report</div>
+            <div class="row g-2 align-items-end">
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="salesBranchLabel">Branch</label>
+                <input id="salesBranchLabel" class="form-control" value="{{ branch.name }}" disabled />
+                <input type="hidden" id="salesBranch" value="{{ branch.id }}">
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="salesProduct">Product</label>
+                <select id="salesProduct" class="form-select" aria-label="Product filter">
+                  <option value="">All Products</option>
+                  {% for product in products %}
+                    <option value="{{ product.id }}" {% if selected_product_id|stringformat:"s" == product.id|stringformat:"s" %}selected{% endif %}>{{ product.product_name }} ({{ product.brand.name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="salesDateRange">Date Or Date Range</label>
+                <input
+                  id="salesDateRange"
+                  class="form-control"
+                  aria-label="Date range filter"
+                  placeholder="Choose date or range"
+                  value="{% if selected_date_from and selected_date_to %}{{ selected_date_from }} to {{ selected_date_to }}{% elif selected_date_from %}{{ selected_date_from }}{% elif selected_date_to %}{{ selected_date_to }}{% endif %}"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Transactions</div>
+                <div class="fs-3 fw-semibold" id="salesRowsCard">0</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Items Released</div>
+                <div class="fs-3 fw-semibold" id="salesQuantityCard">0</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Estimated Value</div>
+                <div class="fs-3 fw-semibold" id="salesValueCard">PHP 0.00</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Products</div>
+                <div class="fs-3 fw-semibold" id="salesProductsCard">0</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card table-blend-shell">
+          <div class="card-body pb-0">
+            <h5 class="card-title mb-1">Daily Sales List</h5>
+            <div class="text-muted">Review released items by date, branch, and product.</div>
+          </div>
+          <div class="card-datatable table-responsive pt-0">
+            <table id="dailySalesTable" class="daily-sales-datatables-basic table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Branch</th>
+                  <th>Product</th>
+                  <th>Brand</th>
+                  <th>Items Released</th>
+                  <th>Estimated Value</th>
+                  <th>Stocks On Hand</th>
+                  <th>History</th>
+                </tr>
+              </thead>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-pane fade {% if stocks_section == 'branch-transfers' %}show active{% endif %}" id="stocks-branch-transfers" role="tabpanel" aria-labelledby="stocks-branch-transfers-tab" tabindex="0">
+        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+          <div>
+            <h5 class="fw-semibold mb-1">{{ branch.name }} Branch Transfers</h5>
+            <div class="text-muted">Review items that were moved from one branch to another.</div>
+          </div>
+        </div>
+
+        <div id="transferReportFilters" class="card mb-4" aria-labelledby="transferReportFiltersLabel">
+          <div class="card-body">
+            <div class="text-muted small mb-2" id="transferReportFiltersLabel">Filter this report</div>
+            <div class="row g-2 align-items-end">
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="transferBranchLabel">Branch</label>
+                <input id="transferBranchLabel" class="form-control" value="{{ branch.name }}" disabled />
+                <input type="hidden" id="transferBranch" value="{{ branch.id }}">
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="transferProduct">Product</label>
+                <select id="transferProduct" class="form-select" aria-label="Product filter">
+                  <option value="">All Products</option>
+                  {% for product in products %}
+                    <option value="{{ product.id }}" {% if selected_product_id|stringformat:"s" == product.id|stringformat:"s" %}selected{% endif %}>{{ product.product_name }} ({{ product.brand.name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="transferDateRange">Date Or Date Range</label>
+                <input
+                  id="transferDateRange"
+                  class="form-control"
+                  aria-label="Date range filter"
+                  placeholder="Choose date or range"
+                  value="{% if selected_date_from and selected_date_to %}{{ selected_date_from }} to {{ selected_date_to }}{% elif selected_date_from %}{{ selected_date_from }}{% elif selected_date_to %}{{ selected_date_to }}{% endif %}"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Transfer Records</div>
+                <div class="fs-3 fw-semibold" id="transferCountCard">0</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Items Moved</div>
+                <div class="fs-3 fw-semibold" id="transferQuantityCard">0</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Transfer Routes</div>
+                <div class="fs-3 fw-semibold" id="transferRoutesCard">0</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="text-muted">Products</div>
+                <div class="fs-3 fw-semibold" id="transferProductsCard">0</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card table-blend-shell">
+          <div class="card-body pb-0">
+            <h5 class="card-title mb-1">Transfer List</h5>
+            <div class="text-muted">Review items sent out, received, and who handled them.</div>
+          </div>
+          <div class="card-datatable table-responsive pt-0">
+            <table id="transferReportTable" class="transfer-report-datatables-basic table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>From Branch</th>
+                  <th>To Branch</th>
+                  <th>Product</th>
+                  <th>Brand</th>
+                  <th>Quantity</th>
+                  <th>Handled By</th>
+                  <th>History</th>
+                </tr>
+              </thead>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-pane fade {% if stocks_section == 'low-stock' %}show active{% endif %}" id="stocks-low-stock" role="tabpanel" aria-labelledby="stocks-low-stock-tab" tabindex="0">
+        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+          <div>
+            <h5 class="fw-semibold mb-1">{{ branch.name }} Low Stock</h5>
+            <div class="text-muted">Focus on products in {{ branch.name }} already at or below their low stock limit.</div>
+          </div>
+        </div>
+
+        <div class="card table-blend-shell">
+          <div class="card-body" aria-labelledby="lowStockFiltersLabel">
+            <div class="mb-2 text-muted" id="lowStockFiltersLabel">Filter low stock items by product</div>
+            <div class="row g-2 align-items-end">
+              <div class="col-12 col-md-8">
+                <label class="form-label" for="lowProduct">Product</label>
+                <select id="lowProduct" class="form-select" aria-label="Low stock product filter">
+                  <option value="">All Products</option>
+                  {% for p in products %}
+                    <option value="{{ p.id }}" {% if selected_product_id == p.id %}selected{% endif %}>{{ p.product_name }} ({{ p.brand.name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-12 col-md-4">
+                <button id="lowClearFilters" class="btn btn-outline-primary w-100" type="button" aria-label="Clear low stock filters">Clear Filters</button>
+              </div>
+            </div>
+          </div>
+          <div class="card-datatable table-responsive pt-0">
+            <table class="low-stock-datatables-basic table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Product</th>
+                  <th>Brand</th>
+                  <th>Current Qty</th>
+                  <th>Low Stock Limit</th>
+                  <th>Short By</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-pane fade {% if stocks_section == 'daily-transactions' %}show active{% endif %}" id="stocks-daily-transactions" role="tabpanel" aria-labelledby="stocks-daily-transactions-tab" tabindex="0">
+        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+          <div>
+            <h5 class="fw-semibold mb-1">{{ branch.name }} Daily Transactions</h5>
+            <div class="text-muted">Review stock actions recorded for {{ branch.name }} on a selected day.</div>
+          </div>
+        </div>
+
+        <div class="card table-blend-shell">
+          <div class="card-body">
+            <div class="row g-2 align-items-end">
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="dailyMvProduct">Product</label>
+                <select id="dailyMvProduct" class="form-select">
+                  <option value="">All Products</option>
+                  {% for p in products %}
+                    <option value="{{ p.id }}" {% if selected_product_id == p.id %}selected{% endif %}>{{ p.product_name }} ({{ p.brand.name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-6 col-md-3">
+                <label class="form-label" for="dailyMvType">Action</label>
+                <select id="dailyMvType" class="form-select">
+                  <option value="">All Actions</option>
+                  <option value="IN">Receive Stock</option>
+                  <option value="OUT">Release Stock</option>
+                  <option value="BACKLOAD">Transfer to Branch</option>
+                </select>
+              </div>
+              <div class="col-6 col-md-3">
+                <label class="form-label" for="dailyMvDate">Date</label>
+                <input id="dailyMvDate" class="form-control" placeholder="Select date" value="{{ selected_daily_date }}" />
+              </div>
+              <div class="col-12 col-md-2">
+                <button id="dailyMvClearFilters" class="btn btn-outline-primary w-100" type="button">Today</button>
+              </div>
+            </div>
+          </div>
+          <div class="card-datatable table-responsive pt-0">
+            <table class="daily-movement-datatables-basic table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Date</th>
+                  <th>Txn ID</th>
+                  <th>Product</th>
+                  <th>Before</th>
+                  <th>Action</th>
+                  <th>Ending Balance</th>
+                  <th>Handled By</th>
+                  <th>Remarks</th>
+                </tr>
+              </thead>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-pane fade {% if stocks_section == 'transaction-log' %}show active{% endif %}" id="stocks-transaction-log" role="tabpanel" aria-labelledby="stocks-transaction-log-tab" tabindex="0">
+        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+          <div>
+            <h5 class="fw-semibold mb-1">{{ branch.name }} Transaction Log</h5>
+            <div class="text-muted">Check stock history for {{ branch.name }} with before, action, and ending balance details.</div>
+          </div>
+        </div>
+
+        {% if selected_txn_group_id %}
+        <div class="alert alert-info d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2" role="alert">
+          <div>Showing one transfer trail from the reports workspace.</div>
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'manage_stocks' %}?branch_id={{ branch.id }}&stocks_section=transaction-log">Clear Focus</a>
+        </div>
+        {% endif %}
+
+        <div class="card table-blend-shell">
+          <div class="card-body">
+            <input type="hidden" id="mvGroupId" value="{{ selected_txn_group_id }}">
+            <div class="row g-2 align-items-end">
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="mvProduct">Product</label>
+                <select id="mvProduct" class="form-select">
+                  <option value="">All Products</option>
+                  {% for p in products %}
+                    <option value="{{ p.id }}" {% if selected_product_id == p.id %}selected{% endif %}>{{ p.product_name }} ({{ p.brand.name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-6 col-md-3">
+                <label class="form-label" for="mvType">Action</label>
+                <select id="mvType" class="form-select">
+                  <option value="">All Actions</option>
+                  <option value="IN" {% if selected_txn_type == 'IN' %}selected{% endif %}>Receive Stock</option>
+                  <option value="OUT" {% if selected_txn_type == 'OUT' %}selected{% endif %}>Release Stock</option>
+                  <option value="BACKLOAD" {% if selected_txn_type == 'BACKLOAD' %}selected{% endif %}>Transfer to Branch</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-5">
+                <label class="form-label" for="mvDateRange">Date Range</label>
+                <input
+                  id="mvDateRange"
+                  class="form-control"
+                  placeholder="Select date range"
+                  value="{% if selected_date_from and selected_date_to %}{{ selected_date_from }} to {{ selected_date_to }}{% elif selected_date_from %}{{ selected_date_from }}{% elif selected_date_to %}{{ selected_date_to }}{% endif %}"
+                />
+              </div>
+            </div>
+          </div>
+          <div class="card-datatable table-responsive pt-0">
+            <table class="movement-datatables-basic table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Date</th>
+                  <th>Txn ID</th>
+                  <th>Product</th>
+                  <th>Before</th>
+                  <th>Action</th>
+                  <th>Ending Balance</th>
+                  <th>Handled By</th>
+                  <th>Remarks</th>
+                </tr>
+              </thead>
+            </table>
+          </div>
+        </div>
+      </form>
     </div>
-    <!-- Modal to add/edit record -->
-    
-    <!--/ DataTable with Buttons -->
+    {% else %}
+    <div class="card mb-4">
+      <div class="card-header border-0 pb-0">
+        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+          <div>
+            <h5 class="card-title mb-1">Branch Workspaces</h5>
+            <p class="text-muted mb-3">Open one branch at a time. Each card shows stock health plus daily and total sales.</p>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          {% if can_view_all_branches_reports %}
+            <div class="col-12 col-md-6 col-xl-4">
+              <div class="card h-100 border border-light">
+                <div class="card-body d-flex flex-column">
+                  <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
+                    <div>
+                      <h5 class="mb-1">All Branches View</h5>
+                      <div class="text-muted small">
+                        <i class="ti ti-layout-grid me-1"></i>Consolidated stocks, daily sales, and branch transfers
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="row g-2 mb-3">
+                    <div class="col-4">
+                      <div class="rounded border bg-lighter p-2 text-center h-100">
+                        <div class="fw-semibold">All</div>
+                        <div class="small text-muted">Branches</div>
+                      </div>
+                    </div>
+                    <div class="col-4">
+                      <div class="rounded border bg-lighter p-2 text-center h-100">
+                        <div class="fw-semibold">Stocks</div>
+                        <div class="small text-muted">Sales</div>
+                      </div>
+                    </div>
+                    <div class="col-4">
+                      <div class="rounded border bg-lighter p-2 text-center h-100">
+                        <div class="fw-semibold">View</div>
+                        <div class="small text-muted">Ready</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <a href="{% url 'all_branches_view' %}" class="btn btn-outline-primary mt-auto w-100">
+                    Open All Branches View
+                  </a>
+                </div>
+              </div>
+            </div>
+          {% endif %}
+
+          {% for branch_item in branches %}
+            {% url 'manage_stocks' branch_item.id as branch_stocks_url %}
+            <div class="col-12 col-md-6 col-xl-4">
+              <div class="card h-100 border border-light">
+                <div class="card-body d-flex flex-column">
+                  <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
+                    <div>
+                      <h5 class="mb-1">{{ branch_item.name }}</h5>
+                      <div class="text-muted small">
+                        <i class="ti ti-map-pin me-1"></i>{{ branch_item.location|default:"Location not added" }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="row g-2 mb-2">
+                    <div class="col-4">
+                      <div class="rounded border bg-lighter p-2 text-center h-100">
+                        <div class="fw-semibold">{{ branch_item.tracked_products_count }}</div>
+                        <div class="small text-muted">Products</div>
+                      </div>
+                    </div>
+                    <div class="col-4">
+                      <div class="rounded border bg-lighter p-2 text-center h-100">
+                        <div class="fw-semibold {% if branch_item.low_stock_count %}text-danger{% endif %}">{{ branch_item.low_stock_count }}</div>
+                        <div class="small text-muted">Low Stock</div>
+                      </div>
+                    </div>
+                    <div class="col-4">
+                      <div class="rounded border bg-lighter p-2 text-center h-100">
+                        <div class="fw-semibold">{{ branch_item.total_quantity }}</div>
+                        <div class="small text-muted">On Hand</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="row g-2 mb-3">
+                    <div class="col-6">
+                      <div class="rounded border bg-lighter p-2 h-100">
+                        <div class="fw-semibold">{{ branch_item.daily_sales_quantity }}</div>
+                        <div class="small text-muted">Daily Sales</div>
+                        <div class="small text-muted">PHP {{ branch_item.daily_sales_value|floatformat:2 }}</div>
+                      </div>
+                    </div>
+                    <div class="col-6">
+                      <div class="rounded border bg-lighter p-2 h-100">
+                        <div class="fw-semibold">{{ branch_item.total_sales_quantity }}</div>
+                        <div class="small text-muted">Total Sales</div>
+                        <div class="small text-muted">PHP {{ branch_item.total_sales_value|floatformat:2 }}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <a href="{{ branch_stocks_url }}?stocks_section=stocks-on-hand" class="btn btn-outline-primary mt-auto w-100">
+                    Open {{ branch_item.name }}
+                  </a>
+                </div>
+              </div>
+            </div>
+          {% empty %}
+            <div class="col-12">
+              <div class="alert alert-info mb-0" role="alert">No branches are available yet.</div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    {% endif %}
+
+    <div class="modal fade" id="stockModal" tabindex="-1" aria-labelledby="stockModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="stockModalLabel">Record Stock Action</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <form id="stockForm" class="row g-3 fv-plugins-bootstrap5 fv-plugins-framework" method="POST" action="{% url 'add_stock' %}" novalidate>
+              {% csrf_token %}
+              {% if editing %}
+                <input type="hidden" name="stock_id" value="{{ stock.id }}">
+              {% endif %}
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="stockType">Choose Action</label>
+                <select id="stockType" name="transaction_type" class="form-select" required aria-required="true">
+                  <option value="IN" {% if editing and stock.transaction_type == 'IN' %}selected{% endif %}>Receive Stock</option>
+                  <option value="OUT" {% if editing and stock.transaction_type == 'OUT' %}selected{% endif %}>Release Stock</option>
+                  <option value="BACKLOAD">Transfer to Branch</option>
+                </select>
+                <div class="fv-plugins-message-container invalid-feedback"></div>
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="stockProduct">Product</label>
+                <select id="stockProduct" name="product" class="form-select" required aria-required="true">
+                  <option value="" disabled selected>Select Product</option>
+                  {% for product in products %}
+                    <option value="{{ product.id }}" {% if editing and stock.product.id == product.id %}selected{% endif %}>{{ product.product_name }} ({{ product.brand.name }})</option>
+                  {% endfor %}
+                </select>
+                <div class="fv-plugins-message-container invalid-feedback"></div>
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="stockBranch">Branch</label>
+                <select id="stockBranch" name="branch" class="form-select" required aria-required="true">
+                  <option value="" disabled selected>Select Branch</option>
+                  {% for branch_item in source_branches %}
+                    <option value="{{ branch_item.id }}" {% if editing and stock.branch.id == branch_item.id %}selected{% endif %}>{{ branch_item.name }}</option>
+                  {% endfor %}
+                </select>
+                <div class="fv-plugins-message-container invalid-feedback"></div>
+              </div>
+              <div class="col-12 col-md-4 d-none" id="stockRelatedBranchWrapper">
+                <label class="form-label" for="stockRelatedBranch">To Branch</label>
+                <select id="stockRelatedBranch" name="related_branch" class="form-select" aria-required="false">
+                  <option value="" selected>Select To Branch</option>
+                  {% for branch_item in destination_branches %}
+                    <option value="{{ branch_item.id }}">{{ branch_item.name }}</option>
+                  {% endfor %}
+                </select>
+                <div class="fv-plugins-message-container invalid-feedback"></div>
+              </div>
+              <div class="col-12">
+                <div id="stockActionGuide" class="alert alert-info mb-0 py-2">
+                  Use this form to receive stock, release stock, or transfer stock to another branch.
+                </div>
+              </div>
+              <div class="col-12 col-md-6 d-none" id="stockCurrentBalanceWrapper" data-current-balance="">
+                <div class="border rounded p-3 h-100">
+                  <div class="text-muted small text-uppercase" id="stockCurrentBalanceLabel">Current Balance</div>
+                  <div class="fs-4 fw-semibold" id="stockCurrentBalanceValue">-</div>
+                  <div class="small text-muted" id="stockCurrentBalanceHint">Select a branch and product to view the current balance.</div>
+                </div>
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="stockProductQuantity">Quantity</label>
+                <input type="number" inputmode="numeric" min="1" step="1" id="stockProductQuantity" name="quantity" class="form-control" placeholder="Quantity" value="{% if editing %}{{ stock.quantity }}{% endif %}" required aria-required="true">
+                <div class="fv-plugins-message-container invalid-feedback"></div>
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="stockRemarks">Notes (optional)</label>
+                <textarea id="stockRemarks" name="remarks" class="form-control" placeholder="Optional note" rows="3">{% if editing %}{{ stock.remarks }}{% endif %}</textarea>
+                <div class="fv-plugins-message-container invalid-feedback"></div>
+              </div>
+
+              <div class="col-12 text-center">
+                <button type="submit" id="stockSubmitButton" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Receive Stock</button>
+                <button type="button" class="btn btn-label-secondary waves-effect" data-bs-dismiss="modal" aria-label="Close">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="stockHistoryModal" tabindex="-1" aria-labelledby="stockHistoryModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div>
+              <h5 class="modal-title" id="stockHistoryModalLabel">Transaction Log</h5>
+              <div class="text-muted small" id="stockHistoryModalSubtitle">Select a stock row to view its transaction log.</div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="d-flex justify-content-end mb-3">
+              <a id="stockHistoryModalOpenTab" class="btn btn-outline-primary btn-sm" href="{% url 'stock_history' %}">
+                <i class="ti ti-external-link me-1"></i> Open Full Tab
+              </a>
+            </div>
+            <div class="table-responsive">
+              <table id="stockHistoryModalTable" class="stock-history-modal-datatables-basic table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Txn ID</th>
+                    <th>Before</th>
+                    <th>Action</th>
+                    <th>Ending Balance</th>
+                    <th>Handled By</th>
+                    <th>Remarks</th>
+                  </tr>
+                </thead>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
