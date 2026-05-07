@@ -21,6 +21,7 @@
               <th>Email</th>
               <th>Name</th>
               <th>Role</th>
+              <th>Assigned Branch</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -72,6 +73,16 @@
                   <option value="admin" {% if editing and user.user_role == 'admin' %}selected{% endif %}>Admin</option>
                   <option value="user" {% if editing and user.user_role == 'user' %}selected{% endif %}>User</option>
                   <option value="branch_manager" {% if editing and user.user_role == 'branch_manager' %}selected{% endif %}>Branch Manager</option>
+                </select>
+                <div class="fv-plugins-message-container invalid-feedback"></div>
+              </div>
+              <div class="col-12 col-md-8">
+                <label class="form-label" for="userAssignedBranch">Assigned Branch (Required for User and Branch Manager)</label>
+                <select id="userAssignedBranch" name="assigned_branch" class="form-select">
+                  <option value="">No Branch</option>
+                  {% for branch in branches %}
+                    <option value="{{ branch.id }}">{{ branch.name }}</option>
+                  {% endfor %}
                 </select>
                 <div class="fv-plugins-message-container invalid-feedback"></div>
               </div>

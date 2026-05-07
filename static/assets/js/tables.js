@@ -50,7 +50,8 @@ if (document.getElementById('userModal')) {
               return (row.first_name ? row.first_name : '') + ' ' + (row.last_name ? row.last_name : '');
             }
           },
-          { data: 'user_role', render: function (data, type, full, meta) { return data.charAt(0).toUpperCase() + data.slice(1).replace('_', ' '); } },
+          { data: 'user_role', render: function (data, type, full, meta) { return String(data || '').charAt(0).toUpperCase() + String(data || '').slice(1).replace('_', ' '); } },
+          { data: 'assigned_branch__name', defaultContent: '', render: function (data) { return data || '-'; } },
           { data: 'id', defaultContent: '' } // Actions column
         ],
         columnDefs: [
@@ -111,7 +112,7 @@ if (document.getElementById('userModal')) {
                 text: '<i class="ti ti-file-text me-sm-1"></i> <span class="d-none d-sm-inline-block">CSV</span>',
                 className: 'dropdown-item',
                 exportOptions: {
-                  columns: [2, 3, 4, 5, 6]
+                  columns: [2, 3, 4, 5, 6, 7]
                 }
               },
               {
@@ -119,7 +120,7 @@ if (document.getElementById('userModal')) {
                 text: '<i class="ti ti-file-spreadsheet me-sm-1"></i> <span class="d-none d-sm-inline-block">Excel</span>',
                 className: 'dropdown-item',
                 exportOptions: {
-                  columns: [2, 3, 4, 5, 6]
+                  columns: [2, 3, 4, 5, 6, 7]
                 }
               },
               {
@@ -127,7 +128,7 @@ if (document.getElementById('userModal')) {
                 text: '<i class="ti ti-file-description me-sm-1"></i> <span class="d-none d-sm-inline-block">PDF</span>',
                 className: 'dropdown-item',
                 exportOptions: {
-                  columns: [2, 3, 4, 5, 6]
+                  columns: [2, 3, 4, 5, 6, 7]
                 }
               },
               {
@@ -135,7 +136,7 @@ if (document.getElementById('userModal')) {
                 text: '<i class="ti ti-copy me-sm-1"></i> <span class="d-none d-sm-inline-block">Copy</span>',
                 className: 'dropdown-item',
                 exportOptions: {
-                  columns: [2, 3, 4, 5, 6]
+                  columns: [2, 3, 4, 5, 6, 7]
                 }
               }
             ]
@@ -170,6 +171,7 @@ if (document.getElementById('userModal')) {
       resetModalInputs('userModal');
       $('#userModalLabel').text('Add New User');
       $('#userForm').attr('action', '/add-user/');
+      syncUserAssignedBranchField();
     });
 
     // Handle view button click
@@ -186,6 +188,7 @@ if (document.getElementById('userModal')) {
       $('#userForm input[name="first_name"]').val(data.first_name).prop('readonly', true);
       $('#userForm input[name="last_name"]').val(data.last_name).prop('readonly', true);
       $('#userForm select[name="user_role"]').val(String(data.user_role)).prop('disabled', true);
+      $('#userForm select[name="assigned_branch"]').val(data.assigned_branch_id ? String(data.assigned_branch_id) : '').prop('disabled', true);
       // Remove submit button
       $('#userForm button[type="submit"]').remove();
       usersModalInstance.show();
@@ -205,7 +208,9 @@ if (document.getElementById('userModal')) {
       $('#userForm input[name="first_name"]').val(data.first_name);
       $('#userForm input[name="last_name"]').val(data.last_name);
       $('#userForm select[name="user_role"]').val(String(data.user_role)).prop('disabled', false);
+      $('#userForm select[name="assigned_branch"]').val(data.assigned_branch_id ? String(data.assigned_branch_id) : '').prop('disabled', false);
       $('#userForm input[name="password"]').val(''); // Clear password field
+      syncUserAssignedBranchField();
       // Bring the submit button back and cancel button side by side
       if (!$('#userForm button[type="submit"]').length && !$('#userForm button[type="button"]').length) {
         $('#userForm .col-12.text-center').html(`
@@ -216,6 +221,22 @@ if (document.getElementById('userModal')) {
     });
   });
 }
+
+function syncUserAssignedBranchField() {
+  const roleField = document.querySelector('#userForm select[name="user_role"]');
+  const branchField = document.querySelector('#userForm select[name="assigned_branch"]');
+  if (!roleField || !branchField) return;
+
+  const roleValue = roleField.value;
+  const needsBranch = roleValue === 'user' || roleValue === 'branch_manager';
+  if (!needsBranch) {
+    branchField.value = '';
+  }
+  branchField.required = needsBranch;
+  branchField.disabled = !needsBranch && !roleField.disabled;
+}
+
+$(document).on('change', '#userForm select[name="user_role"]', syncUserAssignedBranchField);
 
 if (document.getElementById('userForm')) {
   document.getElementById('userForm').addEventListener('submit', function (e) {
@@ -1933,6 +1954,7 @@ if (document.getElementById('stockModal')) {
                 '<div class="d-flex flex-wrap gap-1">' +
                   '<a href="javascript:;" class="btn btn-sm btn-primary item-adjust" data-bs-toggle="modal" data-bs-target="#stockModal" data-id="' + full.id + '"><i class="ti ti-adjustments"></i> Record Action</a>' +
                   '<button type="button" class="btn btn-sm btn-outline-primary item-view-log" data-id="' + full.id + '"><i class="ti ti-history me-1"></i>View Log</button>' +
+                  '<button type="button" class="btn btn-sm btn-outline-danger delete-stock" data-id="' + full.id + '"><i class="ti ti-trash me-1"></i>Delete</button>' +
                 '</div>'
               );
             }
@@ -2064,6 +2086,34 @@ if (document.getElementById('stockModal')) {
       productId: data.product__id,
       productName: data.product__product_name
     });
+  });
+
+  // Delete stock level
+  $('.stock-datatables-basic tbody').on('click', '.delete-stock', function () {
+    var tr = $(this).closest('tr');
+    var row = dt_basic.row(tr);
+    var data = row.data();
+
+    if (confirm('Are you sure you want to delete this stock record?')) {
+      fetch('/delete-stock/' + data.id, {
+        method: 'DELETE',
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+      })
+        .then(response => response.json())
+        .then(result => {
+          if (result.success) {
+            alert(result.message);
+            row.remove().draw();
+          } else {
+            alert('Error deleting record: ' + result.message);
+          }
+        })
+        .catch(error => {
+          alert('Error: ' + error.message);
+        });
+    }
   });
 
   // Deleting stock levels is not supported from the aggregate table; movements can be edited/deleted separately if needed.

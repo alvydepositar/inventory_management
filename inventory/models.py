@@ -9,6 +9,7 @@ class Users(models.Model):
     last_name = models.CharField(max_length=30, blank=True)
     is_active = models.BooleanField(default=True)
     user_role = models.CharField(max_length=20, choices=[('admin', 'Admin'), ('user', 'User'), ('branch_manager', 'Branch Manager')], default='user')
+    assigned_branch = models.ForeignKey('Branches', null=True, blank=True, on_delete=models.SET_NULL, related_name='assigned_users')
     last_login = models.DateTimeField(null=True, blank=True)
     date_joined = models.DateTimeField(auto_now_add=True)
 

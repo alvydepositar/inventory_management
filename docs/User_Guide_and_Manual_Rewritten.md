@@ -1,8 +1,8 @@
 ﻿# Color Smile Inventory Management System
 ## User Guide and User Manual
 
-Document version: 1.1  
-Document date: April 27, 2026
+Document version: 1.2  
+Document date: May 2, 2026
 
 ---
 
@@ -12,6 +12,7 @@ Document date: April 27, 2026
 | --- | --- | --- |
 | 1.0 | April 22, 2026 | Full rewrite aligned to current application UI and workflows |
 | 1.1 | April 27, 2026 | Language updated to be more user-friendly and less technical |
+| 1.2 | May 2, 2026 | Role permissions and branch-based access updated and enforced |
 
 ---
 
@@ -64,7 +65,7 @@ Primary responsibilities:
 Primary responsibilities:
 
 1. Record stock activities accurately.
-2. Review branch stock balances.
+2. Review stock balances for the assigned branch.
 3. Use filters and exports for daily work.
 4. Verify product, branch, and quantity before saving.
 
@@ -72,23 +73,31 @@ Primary responsibilities:
 
 Primary responsibilities:
 
-1. Monitor branch stock balances and alerts.
+1. Monitor stock balances and alerts for the assigned branch.
 2. Review branch daily sales and branch transfers.
-3. Validate activity history and balance changes.
-4. Coordinate stock movement between branches.
+3. Maintain product, category, brand, and supplier records (add/edit).
+4. Correct stock transactions for the assigned branch when needed.
+
+### 3.4 Branch Assignment Rules
+
+1. `User` and `Branch Manager` accounts must be assigned to one branch.
+2. Non-admin accounts can only access their assigned branch data.
+3. `Admin` accounts are not branch-limited and can access all branches.
 
 ## 4. Permissions Guide (Recommended)
 
 | Function | Admin | User | Branch Manager |
 | --- | --- | --- | --- |
 | Manage users | Yes | No | No |
-| Maintain products and reference records | Yes | Yes | Yes |
+| Maintain products, categories, brands, suppliers | Yes (Add/Edit/Delete) | No | Yes (Add/Edit only) |
+| Maintain branch records | Yes | No | No |
 | Record stock activities | Yes | Yes | Yes |
-| View branch reports | Yes | Yes | Yes |
-| View all-branch reports | Yes | Yes | Yes |
+| Correct/delete stock activities | Yes | No | Yes (Assigned branch only) |
+| View branch reports | Yes | Yes (Assigned branch only) | Yes (Assigned branch only) |
+| View all-branch reports | Yes | No | No |
 | Export reports | Yes | Yes | Yes |
 
-Note: Final permissions can be adjusted based on company policy.
+Note: Exports for non-admin accounts only include records within the assigned branch scope.
 
 ## 5. Navigation Overview
 
@@ -114,6 +123,59 @@ Typical workflow:
 3. Use notes for traceability, especially for unusual entries.
 4. Review activity history after important updates.
 5. Compare system records with physical counts regularly.
+
+---
+
+## System Features
+
+The Color Smile Inventory Management System provides comprehensive tools for managing your inventory operations. Here are the key features:
+
+### Dashboard
+- Real-time overview of inventory status across all branches
+- Quick access to key metrics: total products, stock on hand, low stock alerts
+- Per-branch summary cards with branch-specific inventory status
+- Direct links to frequently used functions
+
+### Product Management
+- Maintain product catalog with details like name, description, and pricing
+- Organize products by categories and brands
+- Track product status and low stock thresholds
+- Add, edit, or delete products based on user role
+
+### Stock Management
+- Record stock movements including receipts, releases, and transfers between branches
+- Track real-time stock balances at branch level
+- Maintain accurate stock history for audit and compliance
+- Support for stock adjustments and corrections
+
+### Branch Management
+- Set up and manage multiple branch locations
+- Branch-level access control and data isolation
+- Branch-specific stock tracking and reporting
+- Assign users to specific branches for controlled access
+
+### Stock Monitoring
+- Automated low stock alerts per branch
+- Monitor stock levels in real time
+- View low stock items and take corrective actions
+- Alert notifications for inventory anomalies
+
+### Reporting and Analytics
+- Generate daily sales reports per branch
+- Track stock transfers between branches
+- Export reports for external use and analysis
+- Activity history with filtering and search capabilities
+
+### User and Access Management
+- Create and manage user accounts with role-based access
+- Assign users to branches and roles (Admin, User, Branch Manager)
+- Control permissions based on user roles
+- Maintain audit trails of user activities
+
+### Supplier Management
+- Maintain supplier records and contact information
+- Link suppliers to products for better supply chain tracking
+- Support for multiple supplier relationships
 
 ---
 
@@ -196,7 +258,8 @@ Per-Branch Summary:
 3. Enter User Name and Email.
 4. Enter Password.
 5. Select Role.
-6. Click Submit.
+6. If role is `User` or `Branch Manager`, select Assigned Branch.
+7. Click Submit.
 
 ### 4.3 Edit User
 
@@ -336,6 +399,8 @@ Menu path:
 
 ## 5.4 Branch Management
 
+Role scope: Admin only.
+
 Menu path:
 
 1. Inventory Management
@@ -388,6 +453,11 @@ Main branch workspace tabs:
 3. Branch Transfers
 4. Low Stocks
 5. Activity History (opened by history links or full-tab link)
+
+Access notes:
+
+1. Non-admin users are limited to their assigned branch workspace.
+2. Admin can open all branch workspaces.
 
 ## 6.1 Stocks On Hand
 
@@ -473,6 +543,8 @@ Entry:
 
 1. Open Stocks.
 2. Open All Branches View.
+
+Note: This workspace is for `Admin` role only.
 
 Main tabs:
 
