@@ -32,7 +32,10 @@ if (document.getElementById('userModal')) {
     const activeCheckbox = document.querySelector('#userForm input[name="is_active"]');
     if (roleSelect) roleSelect.value = '';
     if (branchSelect) branchSelect.value = '';
-    if (activeCheckbox) activeCheckbox.checked = true;
+    if (activeCheckbox) {
+      activeCheckbox.checked = true;
+      activeCheckbox.disabled = false;
+    }
   });
   $(function () {
     usersModalInstance = new bootstrap.Modal(document.getElementById('userModal'));
@@ -177,6 +180,7 @@ if (document.getElementById('userModal')) {
       resetModalInputs('userModal');
       $('#userModalLabel').text('Add New User');
       $('#userForm').attr('action', '/add-user/');
+      $('#userForm input[name="is_active"]').prop('checked', true).prop('disabled', false);
       syncUserAssignedBranchField();
     });
 
@@ -195,6 +199,7 @@ if (document.getElementById('userModal')) {
       $('#userForm input[name="last_name"]').val(data.last_name).prop('readonly', true);
       $('#userForm select[name="user_role"]').val(String(data.user_role)).prop('disabled', true);
       $('#userForm select[name="assigned_branch"]').val(data.assigned_branch_id ? String(data.assigned_branch_id) : '').prop('disabled', true);
+      $('#userForm input[name="is_active"]').prop('checked', !!data.is_active).prop('disabled', true);
       // Remove submit button
       $('#userForm button[type="submit"]').remove();
       usersModalInstance.show();
@@ -216,6 +221,7 @@ if (document.getElementById('userModal')) {
       $('#userForm input[name="last_name"]').val(data.last_name);
       $('#userForm select[name="user_role"]').val(String(data.user_role)).prop('disabled', false);
       $('#userForm select[name="assigned_branch"]').val(data.assigned_branch_id ? String(data.assigned_branch_id) : '').prop('disabled', false);
+      $('#userForm input[name="is_active"]').prop('checked', !!data.is_active).prop('disabled', false);
       $('#userForm input[name="password"]').val(''); // Clear password field
       syncUserAssignedBranchField();
       // Bring the submit button back and cancel button side by side
@@ -290,20 +296,33 @@ if (document.getElementById('userForm')) {
         'X-CSRFToken': csrfToken
       }
     })
-      .then(response => response.json())
+      .then(async response => {
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          const text = await response.text();
+          throw new Error('Unexpected server response (' + response.status + '): ' + text.slice(0, 120));
+        }
+        return response.json();
+      })
       .then(data => {
         if (data.success) {
           alert(data.message);
           location.reload(); // Reload the page or update the table dynamically
         } else {
           // Display validation errors
-          for (const [field, errors] of Object.entries(data.errors)) {
-            const input = document.querySelector(`[name=${field}]`);
-            if (input) {
-              const errorContainer = input.nextElementSibling;
-              errorContainer.innerHTML = errors.join('<br>');
-              input.classList.add('is-invalid');
+          if (data.errors) {
+            for (const [field, errors] of Object.entries(data.errors)) {
+              const input = document.querySelector(`[name=${field}]`);
+              if (input) {
+                const errorContainer = input.nextElementSibling;
+                if (errorContainer) {
+                  errorContainer.innerHTML = (Array.isArray(errors) ? errors : [errors]).join('<br>');
+                }
+                input.classList.add('is-invalid');
+              }
             }
+          } else if (data.message) {
+            alert(data.message);
           }
         }
       })
