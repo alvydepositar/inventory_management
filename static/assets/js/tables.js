@@ -204,6 +204,7 @@ if (document.getElementById('userModal')) {
     $('.users-datatables-basic tbody').on('click', '.item-edit', function () {
       resetModalInputs('userModal'); // This resets the form
       var tr = $(this).closest('tr');
+      if (tr.hasClass('child')) tr = tr.prev();
       var row = dt_basic.row(tr);
       var data = row.data();
       // Fill modal fields
@@ -223,6 +224,33 @@ if (document.getElementById('userModal')) {
           <button type="submit" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Submit</button>
           <button type="button" class="btn btn-secondary waves-effect waves-light" data-bs-dismiss="modal">Cancel</button>
         `);
+      }
+    });
+
+    // Delete Record
+    $('.users-datatables-basic tbody').on('click', '.delete-record', function () {
+      var tr = $(this).closest('tr');
+      if (tr.hasClass('child')) tr = tr.prev();
+      var row = dt_basic.row(tr);
+      var data = row.data();
+      if (!data || !data.id) return;
+
+      if (confirm('Are you sure you want to delete this user?')) {
+        fetch('/delete-user/' + data.id + '/', {
+          method: 'DELETE',
+          headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+          }
+        })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              alert(data.message);
+              row.remove().draw();
+            } else {
+              alert('Error deleting user: ' + (data.message || 'Unknown error.'));
+            }
+          });
       }
     });
   });
