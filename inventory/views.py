@@ -110,6 +110,36 @@ def _can_mutate_model(request, model_name, action):
         return role == ROLE_ADMIN
     return role in action_map.get(action, set())
 
+
+def _looks_like_password_hash(value):
+    if not value:
+        return False
+    return value.startswith(('pbkdf2_', 'argon2$', 'bcrypt$', 'scrypt$'))
+
+
+def _sync_auth_user(app_user, raw_password=None):
+    """
+    Keep Django auth user in sync with the application Users record.
+    """
+    user_model = get_user_model()
+    auth_user = user_model.objects.filter(Q(username__iexact=app_user.username) | Q(email__iexact=app_user.email)).first()
+
+    if not auth_user:
+        auth_user = user_model(username=app_user.username)
+
+    auth_user.username = app_user.username
+    auth_user.email = app_user.email or ''
+    auth_user.first_name = app_user.first_name or ''
+    auth_user.last_name = app_user.last_name or ''
+    auth_user.is_active = bool(app_user.is_active)
+
+    if raw_password:
+        auth_user.set_password(raw_password)
+    elif _looks_like_password_hash(app_user.password):
+        auth_user.password = app_user.password
+
+    auth_user.save()
+
 def login_view(request):
     from django.utils.http import url_has_allowed_host_and_scheme
 
@@ -194,7 +224,14 @@ def add_user(request):
 
     ModelForm = modelform_factory(Users, fields=['username', 'email', 'password', 'first_name', 'last_name', 'user_role', 'assigned_branch', 'is_active'])
     data = request.POST.copy()
+    raw_password = (data.get('password') or '').strip()
     role = data.get('user_role') or ROLE_USER
+
+    if not raw_password:
+        return JsonResponse(
+            {'success': False, 'errors': {'password': ['Password is required.']}},
+            status=400,
+        )
 
     if role == ROLE_ADMIN:
         data['assigned_branch'] = ''
@@ -203,6 +240,11 @@ def add_user(request):
             {'success': False, 'errors': {'assigned_branch': ['Branch assignment is required for this role.']}},
             status=400,
         )
+
+    if 'is_active' not in data:
+        data['is_active'] = 'on'
+
+    data['password'] = make_password(raw_password)
 
     form = ModelForm(data)
     if form.is_valid():
@@ -238,10 +280,12 @@ def edit_user(request, pk):
     ModelForm = modelform_factory(Users, fields=['username', 'email', 'password', 'first_name', 'last_name', 'user_role', 'assigned_branch', 'is_active'])
     if request.method == 'POST':
         data = request.POST.copy()
-        raw_password = data.get('password') or ''
+        raw_password = (data.get('password') or '').strip()
         if not raw_password:
             # Do not overwrite password with empty string
             data.pop('password', None)
+        if 'is_active' not in data:
+            data['is_active'] = 'on' if app_user.is_active else ''
         role = data.get('user_role') or app_user.user_role
         if role == ROLE_ADMIN:
             data['assigned_branch'] = ''

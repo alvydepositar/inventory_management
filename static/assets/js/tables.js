@@ -209,6 +209,7 @@ if (document.getElementById('userModal')) {
     $('.users-datatables-basic tbody').on('click', '.item-edit', function () {
       resetModalInputs('userModal'); // This resets the form
       var tr = $(this).closest('tr');
+      if (tr.hasClass('child')) tr = tr.prev();
       var row = dt_basic.row(tr);
       var data = row.data();
       // Fill modal fields
@@ -229,6 +230,33 @@ if (document.getElementById('userModal')) {
           <button type="submit" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Submit</button>
           <button type="button" class="btn btn-secondary waves-effect waves-light" data-bs-dismiss="modal">Cancel</button>
         `);
+      }
+    });
+
+    // Delete Record
+    $('.users-datatables-basic tbody').on('click', '.delete-record', function () {
+      var tr = $(this).closest('tr');
+      if (tr.hasClass('child')) tr = tr.prev();
+      var row = dt_basic.row(tr);
+      var data = row.data();
+      if (!data || !data.id) return;
+
+      if (confirm('Are you sure you want to delete this user?')) {
+        fetch('/delete-user/' + data.id + '/', {
+          method: 'DELETE',
+          headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+          }
+        })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              alert(data.message);
+              row.remove().draw();
+            } else {
+              alert('Error deleting user: ' + (data.message || 'Unknown error.'));
+            }
+          });
       }
     });
   });
@@ -268,20 +296,33 @@ if (document.getElementById('userForm')) {
         'X-CSRFToken': csrfToken
       }
     })
-      .then(response => response.json())
+      .then(async response => {
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          const text = await response.text();
+          throw new Error('Unexpected server response (' + response.status + '): ' + text.slice(0, 120));
+        }
+        return response.json();
+      })
       .then(data => {
         if (data.success) {
           alert(data.message);
           location.reload(); // Reload the page or update the table dynamically
         } else {
           // Display validation errors
-          for (const [field, errors] of Object.entries(data.errors)) {
-            const input = document.querySelector(`[name=${field}]`);
-            if (input) {
-              const errorContainer = input.nextElementSibling;
-              errorContainer.innerHTML = errors.join('<br>');
-              input.classList.add('is-invalid');
+          if (data.errors) {
+            for (const [field, errors] of Object.entries(data.errors)) {
+              const input = document.querySelector(`[name=${field}]`);
+              if (input) {
+                const errorContainer = input.nextElementSibling;
+                if (errorContainer) {
+                  errorContainer.innerHTML = (Array.isArray(errors) ? errors : [errors]).join('<br>');
+                }
+                input.classList.add('is-invalid');
+              }
             }
+          } else if (data.message) {
+            alert(data.message);
           }
         }
       })
