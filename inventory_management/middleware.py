@@ -7,10 +7,17 @@ EXEMPT_PATHS = [
     '/admin/login/',
 ]
 
+EXEMPT_PREFIXES = [
+    '/password-reset/',
+    '/reset/',
+]
+
 def _is_exempt(path: str) -> bool:
     if path.startswith('/static/'):
         return True
-    return path in EXEMPT_PATHS
+    if path in EXEMPT_PATHS:
+        return True
+    return any(path.startswith(prefix) for prefix in EXEMPT_PREFIXES)
 
 def _is_api_request(request) -> bool:
     # Treat XHR, JSON-accepting, or any *data* endpoint as API
