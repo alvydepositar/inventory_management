@@ -3271,6 +3271,7 @@ function resetModalInputs(modalId) {
         }
         input.classList.remove('is-invalid');
         input.removeAttribute('readonly');
+        input.disabled = false;
 
         // Remove error messages
         const errorContainer = input.nextElementSibling;

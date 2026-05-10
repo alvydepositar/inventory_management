@@ -142,6 +142,24 @@ For production, you should:
 - Set `ALLOWED_HOSTS`
 - Configure static files collection (`python manage.py collectstatic`) and a production web server
 
+### Email (Password Reset Links)
+
+Password reset emails only deliver when SMTP is configured. If SMTP is not configured, the app falls back to console output in development.
+
+Set these environment variables before starting Django:
+
+- `EMAIL_HOST` (example: `smtp.gmail.com`)
+- `EMAIL_PORT` (example: `587`)
+- `EMAIL_HOST_USER`
+- `EMAIL_HOST_PASSWORD`
+- `EMAIL_USE_TLS` (`true` or `false`)
+- `EMAIL_USE_SSL` (`true` or `false`)
+- `DEFAULT_FROM_EMAIL` (example: `no-reply@yourdomain.com`)
+
+Optional override:
+
+- `DJANGO_EMAIL_BACKEND` (example: `django.core.mail.backends.smtp.EmailBackend`)
+
 ## Key URLs and Endpoints
 
 UI routes (HTML pages):
