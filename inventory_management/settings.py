@@ -10,10 +10,41 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _load_env_file(path: Path) -> None:
+    if not path.exists():
+        return
+
+    for raw_line in path.read_text(encoding='utf-8').splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith('#'):
+            continue
+        if line.startswith('export '):
+            line = line[7:].strip()
+
+        separator = '=' if '=' in line else (':' if ':' in line else None)
+        if separator is None:
+            continue
+
+        key, value = line.split(separator, 1)
+        key = key.strip()
+        value = value.strip()
+
+        if value and len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"', '`'}:
+            value = value[1:-1]
+
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_env_file(BASE_DIR / '.env')
+_load_env_file(Path(__file__).resolve().parent / '.env')
 
 
 # Quick-start development settings - unsuitable for production
@@ -26,7 +57,6 @@ SECRET_KEY = 'django-insecure-&+4jvcbs=ja3)30v$)#zw&xvxb-f+(lo2^_bavxgwa#sp#fafo
 DEBUG = True
 
 ALLOWED_HOSTS = [
-    '8ghsd5f7-8000.asse.devtunnels.ms',
     'localhost',
     '127.0.0.1',
     'alvydepositar.pythonanywhere.com',
@@ -174,3 +204,32 @@ SESSION_COOKIE_SECURE = not DEBUG  # True in production (HTTPS)
 CSRF_COOKIE_SECURE = not DEBUG     # True in production (HTTPS)
 SECURE_SSL_REDIRECT = not DEBUG    # Enable only when HTTPS is configured
 X_FRAME_OPTIONS = 'DENY'
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+# Email settings (password reset links)
+# Use SMTP when EMAIL_HOST is configured to a non-localhost value.
+_email_host_env = os.getenv('EMAIL_HOST', '').strip()
+_smtp_configured = _email_host_env not in {'', 'localhost', '127.0.0.1'}
+
+EMAIL_BACKEND = os.getenv(
+    'DJANGO_EMAIL_BACKEND',
+    'django.core.mail.backends.smtp.EmailBackend'
+    if _smtp_configured
+    else 'django.core.mail.backends.console.EmailBackend',
+)
+EMAIL_HOST = _email_host_env or 'localhost'
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587' if _smtp_configured else '25'))
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = _env_bool('EMAIL_USE_TLS', default=_smtp_configured)
+EMAIL_USE_SSL = _env_bool('EMAIL_USE_SSL', default=False)
+DEFAULT_FROM_EMAIL = os.getenv(
+    'DEFAULT_FROM_EMAIL',
+    EMAIL_HOST_USER or 'no-reply@colorsmile.local',
+)

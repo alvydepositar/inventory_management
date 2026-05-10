@@ -32,7 +32,10 @@ if (document.getElementById('userModal')) {
     const activeCheckbox = document.querySelector('#userForm input[name="is_active"]');
     if (roleSelect) roleSelect.value = '';
     if (branchSelect) branchSelect.value = '';
-    if (activeCheckbox) activeCheckbox.checked = true;
+    if (activeCheckbox) {
+      activeCheckbox.checked = true;
+      activeCheckbox.disabled = false;
+    }
   });
   $(function () {
     usersModalInstance = new bootstrap.Modal(document.getElementById('userModal'));
@@ -177,6 +180,7 @@ if (document.getElementById('userModal')) {
       resetModalInputs('userModal');
       $('#userModalLabel').text('Add New User');
       $('#userForm').attr('action', '/add-user/');
+      $('#userForm input[name="is_active"]').prop('checked', true).prop('disabled', false);
       syncUserAssignedBranchField();
     });
 
@@ -195,6 +199,7 @@ if (document.getElementById('userModal')) {
       $('#userForm input[name="last_name"]').val(data.last_name).prop('readonly', true);
       $('#userForm select[name="user_role"]').val(String(data.user_role)).prop('disabled', true);
       $('#userForm select[name="assigned_branch"]').val(data.assigned_branch_id ? String(data.assigned_branch_id) : '').prop('disabled', true);
+      $('#userForm input[name="is_active"]').prop('checked', !!data.is_active).prop('disabled', true);
       // Remove submit button
       $('#userForm button[type="submit"]').remove();
       usersModalInstance.show();
@@ -215,6 +220,7 @@ if (document.getElementById('userModal')) {
       $('#userForm input[name="last_name"]').val(data.last_name);
       $('#userForm select[name="user_role"]').val(String(data.user_role)).prop('disabled', false);
       $('#userForm select[name="assigned_branch"]').val(data.assigned_branch_id ? String(data.assigned_branch_id) : '').prop('disabled', false);
+      $('#userForm input[name="is_active"]').prop('checked', !!data.is_active).prop('disabled', false);
       $('#userForm input[name="password"]').val(''); // Clear password field
       syncUserAssignedBranchField();
       // Bring the submit button back and cancel button side by side
@@ -3224,6 +3230,7 @@ function resetModalInputs(modalId) {
         }
         input.classList.remove('is-invalid');
         input.removeAttribute('readonly');
+        input.disabled = false;
 
         // Remove error messages
         const errorContainer = input.nextElementSibling;

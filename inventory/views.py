@@ -13,9 +13,10 @@ from django.db.models.functions import Coalesce, TruncDate
 from functools import wraps
 from random import randint
 from django.contrib.auth import authenticate, login as django_login, logout as django_logout, get_user_model
-from django.contrib.auth.hashers import check_password, make_password
+from django.contrib.auth.hashers import check_password
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from .auth_sync import sync_all_app_users_to_auth, sync_app_user_to_auth
 from .access import (
     ROLE_ADMIN,
     ROLE_BRANCH_MANAGER,
@@ -119,6 +120,8 @@ def login_view(request):
         return redirect('dashboard')
 
     if request.method == 'POST':
+        # Ensure legacy app Users are synced before auth and reset flows rely on auth_user.
+        sync_all_app_users_to_auth()
         identifier = request.POST.get('username') or ''
         password = request.POST.get('password') or ''
         user = authenticate(request, username=identifier, password=password)
@@ -203,7 +206,10 @@ def add_user(request):
 
     form = ModelForm(data)
     if form.is_valid():
-        form.save()
+        app_user = form.save(commit=False)
+        raw_password = (app_user.password or '').strip()
+        app_user.save()
+        sync_app_user_to_auth(app_user, raw_password=raw_password or None)
         return JsonResponse({'success': True, 'message': 'User added successfully!'})
     return JsonResponse({'success': False, 'errors': form.errors}, status=400)
 
@@ -247,10 +253,8 @@ def edit_user(request, pk):
         form = ModelForm(data, instance=app_user)
         if form.is_valid():
             app_user = form.save(commit=False)
-            if raw_password:
-                app_user.password = make_password(raw_password)
             app_user.save()
-            _sync_auth_user(app_user, raw_password if raw_password else None)
+            sync_app_user_to_auth(app_user, raw_password if raw_password else None)
             return JsonResponse({'success': True, 'message': 'User updated successfully!'})
         else:
             return JsonResponse({'success': False, 'errors': form.errors}, status=400)
@@ -1068,6 +1072,7 @@ def account_update(request):
         if email:
             app_user.email = email
         app_user.save()
+        sync_app_user_to_auth(app_user)
     return JsonResponse({'success': True, 'message': 'Profile updated'})
 
 @login_required
@@ -1083,6 +1088,10 @@ def account_change_password(request):
         return JsonResponse({'success': False, 'message': 'Current password incorrect'}, status=400)
     request.user.set_password(new)
     request.user.save()
+    app_user = Users.objects.filter(Q(username=request.user.username) | Q(email=request.user.email)).first()
+    if app_user:
+        app_user.password = request.user.password
+        app_user.save(update_fields=['password'])
     return JsonResponse({'success': True, 'message': 'Password changed. Please login again.'})
 
 @login_required

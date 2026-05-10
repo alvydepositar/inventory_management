@@ -1,4 +1,7 @@
 from django import forms
+from django.contrib.auth.forms import PasswordResetForm
+
+from .auth_sync import sync_all_app_users_to_auth
 from .models import *
 
 class ProductForm(forms.ModelForm):
@@ -149,3 +152,13 @@ class StockForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['product'].label_from_instance = lambda obj: f"{obj.product_name} ({obj.brand.name})"
+
+
+class SyncedPasswordResetForm(PasswordResetForm):
+    """
+    Ensure legacy app users are synced to Django auth before reset-link lookup.
+    """
+
+    def get_users(self, email):
+        sync_all_app_users_to_auth()
+        return super().get_users(email)
