@@ -38,6 +38,7 @@
         <button type="button" class="btn btn-primary stock-quick-action" data-stock-action="IN">Receive</button>
         <button type="button" class="btn btn-outline-primary stock-quick-action" data-stock-action="OUT">Release</button>
         <button type="button" class="btn btn-outline-primary stock-quick-action" data-stock-action="BACKLOAD">Transfer</button>
+        <button type="button" class="btn btn-outline-primary stock-convert-quick-action">Mix / Convert</button>
       </div>
     </div>
 
@@ -412,6 +413,9 @@
                   <option value="IN">Receive Stock</option>
                   <option value="OUT">Release Stock</option>
                   <option value="BACKLOAD">Transfer to Branch</option>
+                  <option value="MIXING">Mix / Convert</option>
+                  <option value="MIX_OUT">Used for Mixing</option>
+                  <option value="MIX_IN">Produced from Mixing</option>
                 </select>
               </div>
               <div class="col-6 col-md-3">
@@ -478,6 +482,9 @@
                   <option value="IN" {% if selected_txn_type == 'IN' %}selected{% endif %}>Receive Stock</option>
                   <option value="OUT" {% if selected_txn_type == 'OUT' %}selected{% endif %}>Release Stock</option>
                   <option value="BACKLOAD" {% if selected_txn_type == 'BACKLOAD' %}selected{% endif %}>Transfer to Branch</option>
+                  <option value="MIXING" {% if selected_txn_type == 'MIXING' %}selected{% endif %}>Mix / Convert</option>
+                  <option value="MIX_OUT" {% if selected_txn_type == 'MIX_OUT' %}selected{% endif %}>Used for Mixing</option>
+                  <option value="MIX_IN" {% if selected_txn_type == 'MIX_IN' %}selected{% endif %}>Produced from Mixing</option>
                 </select>
               </div>
               <div class="col-12 col-md-5">
@@ -711,6 +718,160 @@
 
               <div class="col-12 text-center">
                 <button type="submit" id="stockSubmitButton" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Receive Stock</button>
+                <button type="button" class="btn btn-label-secondary waves-effect" data-bs-dismiss="modal" aria-label="Close">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="stockConversionModal" tabindex="-1" aria-labelledby="stockConversionModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="stockConversionModalLabel">Mix / Convert Stock</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <form id="stockConversionForm" class="row g-3" method="POST" action="{% url 'add_stock_conversion' %}" novalidate>
+              {% csrf_token %}
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="conversionBranch">Branch</label>
+                <select id="conversionBranch" name="branch" class="form-select" required aria-required="true">
+                  <option value="" disabled selected>Select Branch</option>
+                  {% for branch_item in source_branches %}
+                    <option value="{{ branch_item.id }}">{{ branch_item.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="conversionOutputProduct">Output Product</label>
+                <select id="conversionOutputProduct" name="output_product" class="form-select" required aria-required="true">
+                  <option value="" disabled selected>Select Product</option>
+                  {% for product in products %}
+                    <option value="{{ product.id }}">{{ product.product_name }} ({{ product.brand.name }})</option>
+                  {% endfor %}
+                </select>
+                {% if can_create_products %}
+                <div class="form-check mt-2">
+                  <input class="form-check-input" type="checkbox" value="1" id="createNewOutputProduct">
+                  <label class="form-check-label" for="createNewOutputProduct">
+                    Add new output product for this conversion
+                  </label>
+                </div>
+                {% endif %}
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="conversionOutputQuantity">Produced Quantity</label>
+                <input type="number" min="1" step="1" class="form-control" id="conversionOutputQuantity" name="output_quantity" placeholder="Quantity produced" required aria-required="true" />
+              </div>
+              {% if can_create_products %}
+              <div class="col-12 d-none" id="newOutputProductFields">
+                <div class="border rounded p-3">
+                  <div class="fw-semibold mb-2">New Output Product Details</div>
+                  <div class="row g-2">
+                    <div class="col-12 col-md-3">
+                      <label class="form-label" for="newOutputProductId">Product Code</label>
+                      <input type="text" class="form-control" id="newOutputProductId" placeholder="e.g. P-GRAY-NEW" />
+                    </div>
+                    <div class="col-12 col-md-3">
+                      <label class="form-label" for="newOutputProductName">Product Name</label>
+                      <input type="text" class="form-control" id="newOutputProductName" placeholder="e.g. Gray" />
+                    </div>
+                    <div class="col-12 col-md-2">
+                      <label class="form-label" for="newOutputUnitPrice">Unit Price</label>
+                      <input type="number" min="0" step="0.01" class="form-control" id="newOutputUnitPrice" placeholder="0.00" />
+                    </div>
+                    <div class="col-12 col-md-2">
+                      <label class="form-label" for="newOutputLowStockLimit">Low Stock Limit</label>
+                      <input type="number" min="0" step="1" class="form-control" id="newOutputLowStockLimit" placeholder="10" />
+                    </div>
+                    <div class="col-12 col-md-2">
+                      <label class="form-label" for="newOutputCategory">Category</label>
+                      <select class="form-select" id="newOutputCategory">
+                        <option value="">Optional</option>
+                        {% for category in categories %}
+                          <option value="{{ category.id }}">{{ category.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="col-12 col-md-3">
+                      <label class="form-label" for="newOutputBrand">Brand</label>
+                      <select class="form-select" id="newOutputBrand">
+                        <option value="">Optional</option>
+                        {% for brand in brands %}
+                          <option value="{{ brand.id }}">{{ brand.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="col-12 col-md-3">
+                      <label class="form-label" for="newOutputSupplier">Supplier</label>
+                      <select class="form-select" id="newOutputSupplier">
+                        <option value="">Optional</option>
+                        {% for supplier in suppliers %}
+                          <option value="{{ supplier.id }}">{{ supplier.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {% endif %}
+
+              <div class="col-12">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <h6 class="mb-0">Input Products Used</h6>
+                  <button type="button" class="btn btn-sm btn-outline-primary" id="addConversionInputRow">
+                    <i class="ti ti-plus me-1"></i>Add Input
+                  </button>
+                </div>
+                <div class="table-responsive">
+                  <table class="table table-bordered align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th style="width: 45%;">Input Product</th>
+                        <th style="width: 20%;">Quantity Used</th>
+                        <th style="width: 25%;">Remaining Qty</th>
+                        <th style="width: 10%;"></th>
+                      </tr>
+                    </thead>
+                    <tbody id="conversionInputRows">
+                      <tr class="conversion-input-row">
+                        <td>
+                          <select class="form-select conversion-input-product" name="input_product" required aria-required="true">
+                            <option value="" disabled selected>Select Product</option>
+                            {% for product in products %}
+                              <option value="{{ product.id }}">{{ product.product_name }} ({{ product.brand.name }})</option>
+                            {% endfor %}
+                          </select>
+                        </td>
+                        <td>
+                          <input type="number" min="1" step="1" class="form-control conversion-input-quantity" name="quantity_used" placeholder="Quantity used" required aria-required="true" />
+                        </td>
+                        <td>
+                          <input type="number" class="form-control conversion-input-remaining" placeholder="Auto-calculated" readonly aria-readonly="true" />
+                        </td>
+                        <td class="text-center">
+                          <button type="button" class="btn btn-sm btn-outline-danger remove-conversion-input-row" aria-label="Remove input row">
+                            <i class="ti ti-trash"></i>
+                          </button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="col-12">
+                <label class="form-label" for="conversionRemarks">Notes (optional)</label>
+                <textarea id="conversionRemarks" name="remarks" class="form-control" rows="3" placeholder="Optional note"></textarea>
+              </div>
+
+              <div class="col-12 text-center">
+                <button type="submit" class="btn btn-primary me-sm-3 me-1 waves-effect waves-light">Create Conversion</button>
                 <button type="button" class="btn btn-label-secondary waves-effect" data-bs-dismiss="modal" aria-label="Close">
                   Cancel
                 </button>

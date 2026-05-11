@@ -11,7 +11,7 @@ if (window.jQuery) {
     }
   });
 }
-let usersModalInstance, productModalInstance, categoryModalInstance, brandModalInstance, supplierModalInstance, branchModalInstance, stockModalInstance;
+let usersModalInstance, productModalInstance, categoryModalInstance, brandModalInstance, supplierModalInstance, branchModalInstance, stockModalInstance, stockConversionModalInstance;
 
 // Users DataTable and Modal
 if (document.getElementById('userModal')) {
@@ -32,7 +32,10 @@ if (document.getElementById('userModal')) {
     const activeCheckbox = document.querySelector('#userForm input[name="is_active"]');
     if (roleSelect) roleSelect.value = '';
     if (branchSelect) branchSelect.value = '';
-    if (activeCheckbox) activeCheckbox.checked = true;
+    if (activeCheckbox) {
+      activeCheckbox.checked = true;
+      activeCheckbox.disabled = false;
+    }
   });
   $(function () {
     usersModalInstance = new bootstrap.Modal(document.getElementById('userModal'));
@@ -177,6 +180,7 @@ if (document.getElementById('userModal')) {
       resetModalInputs('userModal');
       $('#userModalLabel').text('Add New User');
       $('#userForm').attr('action', '/add-user/');
+      $('#userForm input[name="is_active"]').prop('checked', true).prop('disabled', false);
       syncUserAssignedBranchField();
     });
 
@@ -195,6 +199,7 @@ if (document.getElementById('userModal')) {
       $('#userForm input[name="last_name"]').val(data.last_name).prop('readonly', true);
       $('#userForm select[name="user_role"]').val(String(data.user_role)).prop('disabled', true);
       $('#userForm select[name="assigned_branch"]').val(data.assigned_branch_id ? String(data.assigned_branch_id) : '').prop('disabled', true);
+      $('#userForm input[name="is_active"]').prop('checked', !!data.is_active).prop('disabled', true);
       // Remove submit button
       $('#userForm button[type="submit"]').remove();
       usersModalInstance.show();
@@ -216,6 +221,7 @@ if (document.getElementById('userModal')) {
       $('#userForm input[name="last_name"]').val(data.last_name);
       $('#userForm select[name="user_role"]').val(String(data.user_role)).prop('disabled', false);
       $('#userForm select[name="assigned_branch"]').val(data.assigned_branch_id ? String(data.assigned_branch_id) : '').prop('disabled', false);
+      $('#userForm input[name="is_active"]').prop('checked', !!data.is_active).prop('disabled', false);
       $('#userForm input[name="password"]').val(''); // Clear password field
       syncUserAssignedBranchField();
       // Bring the submit button back and cancel button side by side
@@ -290,20 +296,33 @@ if (document.getElementById('userForm')) {
         'X-CSRFToken': csrfToken
       }
     })
-      .then(response => response.json())
+      .then(async response => {
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          const text = await response.text();
+          throw new Error('Unexpected server response (' + response.status + '): ' + text.slice(0, 120));
+        }
+        return response.json();
+      })
       .then(data => {
         if (data.success) {
           alert(data.message);
           location.reload(); // Reload the page or update the table dynamically
         } else {
           // Display validation errors
-          for (const [field, errors] of Object.entries(data.errors)) {
-            const input = document.querySelector(`[name=${field}]`);
-            if (input) {
-              const errorContainer = input.nextElementSibling;
-              errorContainer.innerHTML = errors.join('<br>');
-              input.classList.add('is-invalid');
+          if (data.errors) {
+            for (const [field, errors] of Object.entries(data.errors)) {
+              const input = document.querySelector(`[name=${field}]`);
+              if (input) {
+                const errorContainer = input.nextElementSibling;
+                if (errorContainer) {
+                  errorContainer.innerHTML = (Array.isArray(errors) ? errors : [errors]).join('<br>');
+                }
+                input.classList.add('is-invalid');
+              }
             }
+          } else if (data.message) {
+            alert(data.message);
           }
         }
       })
@@ -1608,6 +1627,7 @@ function getStockActionLabel(typeValue) {
 function renderMovementActionMarkup(quantity, row) {
   if (!row) return '';
   const relatedBranchName = row['related_branch__name'] || '';
+  const conversionRef = row.conversion_id ? ' (Conversion #' + row.conversion_id + ')' : '';
   if (row['transaction_type'] === 'IN') {
     return '<span class="fw-semibold text-success">Received ' + quantity + '</span>';
   }
@@ -1616,6 +1636,12 @@ function renderMovementActionMarkup(quantity, row) {
   }
   if (row['transaction_type'] === 'BLO') {
     return '<span class="fw-semibold text-danger">Transferred Out ' + quantity + (relatedBranchName ? ' to ' + relatedBranchName : '') + '</span>';
+  }
+  if (row['transaction_type'] === 'MIX_OUT') {
+    return '<span class="fw-semibold text-danger">Used for Mixing ' + quantity + conversionRef + '</span>';
+  }
+  if (row['transaction_type'] === 'MIX_IN') {
+    return '<span class="fw-semibold text-success">Produced from Mixing ' + quantity + conversionRef + '</span>';
   }
   return '<span class="fw-semibold text-danger">Released ' + quantity + '</span>';
 }
@@ -2196,6 +2222,358 @@ if (document.getElementById('stockModal')) {
     $('.dataTables_length .form-select').removeClass('form-select-sm');
   }, 300);
 });
+}
+
+function resetStockConversionForm() {
+  const form = document.getElementById('stockConversionForm');
+  const rowsContainer = document.getElementById('conversionInputRows');
+  if (!form || !rowsContainer) return;
+
+  form.reset();
+  const rows = Array.from(rowsContainer.querySelectorAll('.conversion-input-row'));
+  rows.forEach((row, index) => {
+    if (index === 0) {
+      const productSelect = row.querySelector('.conversion-input-product');
+      const qtyInput = row.querySelector('.conversion-input-quantity');
+      const remainingInput = row.querySelector('.conversion-input-remaining');
+      if (productSelect) productSelect.value = '';
+      if (qtyInput) qtyInput.value = '';
+      if (remainingInput) remainingInput.value = '';
+      row.dataset.availableQty = '';
+      return;
+    }
+    row.remove();
+  });
+
+  const currentBranch = window.currentBranchId ? String(window.currentBranchId) : '';
+  const branchField = document.getElementById('conversionBranch');
+  if (branchField && currentBranch) {
+    branchField.value = currentBranch;
+  }
+
+  const createNewOutputProduct = document.getElementById('createNewOutputProduct');
+  if (createNewOutputProduct) {
+    createNewOutputProduct.checked = false;
+  }
+
+  const newOutputFields = [
+    'newOutputProductId',
+    'newOutputProductName',
+    'newOutputUnitPrice',
+    'newOutputLowStockLimit',
+    'newOutputCategory',
+    'newOutputBrand',
+    'newOutputSupplier'
+  ];
+  newOutputFields.forEach(function (fieldId) {
+    const field = document.getElementById(fieldId);
+    if (field) field.value = '';
+  });
+
+  resetStockConversionBalanceCache();
+  syncStockConversionOutputProductMode();
+}
+
+function addStockConversionInputRow() {
+  const rowsContainer = document.getElementById('conversionInputRows');
+  if (!rowsContainer) return;
+  const firstRow = rowsContainer.querySelector('.conversion-input-row');
+  if (!firstRow) return;
+
+  const cloned = firstRow.cloneNode(true);
+  const productSelect = cloned.querySelector('.conversion-input-product');
+  const qtyInput = cloned.querySelector('.conversion-input-quantity');
+  const remainingInput = cloned.querySelector('.conversion-input-remaining');
+  if (productSelect) productSelect.value = '';
+  if (qtyInput) qtyInput.value = '';
+  if (remainingInput) remainingInput.value = '';
+  cloned.dataset.availableQty = '';
+  rowsContainer.appendChild(cloned);
+}
+
+let stockConversionBalanceCache = {};
+
+function resetStockConversionBalanceCache() {
+  stockConversionBalanceCache = {};
+}
+
+function updateConversionInputRemainingFromAvailable(row) {
+  if (!row) return;
+
+  const qtyField = row.querySelector('.conversion-input-quantity');
+  const remainingField = row.querySelector('.conversion-input-remaining');
+  const availableRaw = row.dataset.availableQty;
+  if (!remainingField) return;
+
+  if (availableRaw === undefined || availableRaw === null || availableRaw === '') {
+    remainingField.value = '';
+    return;
+  }
+
+  const available = Number(availableRaw);
+  const used = Number(qtyField && qtyField.value ? qtyField.value : 0);
+  const safeUsed = Number.isFinite(used) && used > 0 ? used : 0;
+  remainingField.value = String(available - safeUsed);
+}
+
+async function fetchConversionInputAvailableQty(branchId, productId) {
+  const key = String(branchId) + ':' + String(productId);
+  if (Object.prototype.hasOwnProperty.call(stockConversionBalanceCache, key)) {
+    return stockConversionBalanceCache[key];
+  }
+
+  const response = await fetch(
+    '/stock-data/?branch_id=' + encodeURIComponent(branchId) + '&product_id=' + encodeURIComponent(productId)
+  );
+  if (!response.ok) {
+    throw new Error('Unable to load stock balance.');
+  }
+
+  const payload = await response.json();
+  const firstRow = Array.isArray(payload.data) && payload.data.length ? payload.data[0] : null;
+  const available = firstRow && firstRow.quantity != null ? Number(firstRow.quantity) : 0;
+  stockConversionBalanceCache[key] = available;
+  return available;
+}
+
+async function refreshConversionInputRowRemaining(row) {
+  if (!row) return;
+
+  const branchField = document.getElementById('conversionBranch');
+  const productField = row.querySelector('.conversion-input-product');
+  const remainingField = row.querySelector('.conversion-input-remaining');
+  if (!remainingField) return;
+
+  const branchId = branchField && branchField.value ? String(branchField.value) : '';
+  const productId = productField && productField.value ? String(productField.value) : '';
+  if (!branchId || !productId) {
+    row.dataset.availableQty = '';
+    remainingField.value = '';
+    return;
+  }
+
+  remainingField.value = '...';
+  try {
+    const available = await fetchConversionInputAvailableQty(branchId, productId);
+    const currentBranchId = branchField && branchField.value ? String(branchField.value) : '';
+    const currentProductId = productField && productField.value ? String(productField.value) : '';
+    if (currentBranchId !== branchId || currentProductId !== productId) {
+      return;
+    }
+    row.dataset.availableQty = String(available);
+    updateConversionInputRemainingFromAvailable(row);
+  } catch (error) {
+    row.dataset.availableQty = '';
+    remainingField.value = '';
+  }
+}
+
+function refreshAllConversionInputRowsRemaining() {
+  const rows = Array.from(document.querySelectorAll('#conversionInputRows .conversion-input-row'));
+  rows.forEach(function (row) {
+    void refreshConversionInputRowRemaining(row);
+  });
+}
+
+function syncStockConversionOutputProductMode() {
+  const createCheckbox = document.getElementById('createNewOutputProduct');
+  const outputSelect = document.getElementById('conversionOutputProduct');
+  const newFieldsWrapper = document.getElementById('newOutputProductFields');
+  const createNew = !!(createCheckbox && createCheckbox.checked);
+
+  if (outputSelect) {
+    outputSelect.disabled = createNew;
+    outputSelect.required = !createNew;
+    if (createNew) {
+      outputSelect.value = '';
+    }
+  }
+
+  if (newFieldsWrapper) {
+    newFieldsWrapper.classList.toggle('d-none', !createNew);
+  }
+}
+
+if (document.getElementById('stockConversionModal')) {
+  const modalEl = document.getElementById('stockConversionModal');
+  stockConversionModalInstance = new bootstrap.Modal(modalEl);
+
+  modalEl.addEventListener('hidden.bs.modal', function () {
+    resetStockConversionForm();
+  });
+
+  $(document).on('click', '.stock-convert-quick-action', function () {
+    resetStockConversionForm();
+    stockConversionModalInstance.show();
+  });
+
+  $(document).on('click', '#addConversionInputRow', function () {
+    addStockConversionInputRow();
+  });
+  $(document).on('change', '#createNewOutputProduct', function () {
+    syncStockConversionOutputProductMode();
+  });
+  $(document).on('change', '#conversionBranch', function () {
+    resetStockConversionBalanceCache();
+    refreshAllConversionInputRowsRemaining();
+  });
+  $(document).on('change', '.conversion-input-product', function () {
+    const row = this.closest('.conversion-input-row');
+    if (!row) return;
+    row.dataset.availableQty = '';
+    void refreshConversionInputRowRemaining(row);
+  });
+  $(document).on('input', '.conversion-input-quantity', function () {
+    const row = this.closest('.conversion-input-row');
+    if (!row) return;
+    if (row.dataset.availableQty === undefined || row.dataset.availableQty === null || row.dataset.availableQty === '') {
+      void refreshConversionInputRowRemaining(row);
+      return;
+    }
+    updateConversionInputRemainingFromAvailable(row);
+  });
+
+  $(document).on('click', '.remove-conversion-input-row', function () {
+    const rowsContainer = document.getElementById('conversionInputRows');
+    if (!rowsContainer) return;
+    const rows = rowsContainer.querySelectorAll('.conversion-input-row');
+    if (rows.length <= 1) {
+      const row = rowsContainer.querySelector('.conversion-input-row');
+      if (!row) return;
+      const productSelect = row.querySelector('.conversion-input-product');
+      const qtyInput = row.querySelector('.conversion-input-quantity');
+      const remainingInput = row.querySelector('.conversion-input-remaining');
+      if (productSelect) productSelect.value = '';
+      if (qtyInput) qtyInput.value = '';
+      if (remainingInput) remainingInput.value = '';
+      row.dataset.availableQty = '';
+      return;
+    }
+    const row = this.closest('.conversion-input-row');
+    if (row) row.remove();
+  });
+}
+
+if (document.getElementById('stockConversionForm')) {
+  document.getElementById('stockConversionForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    const branchField = document.getElementById('conversionBranch');
+    const outputProductField = document.getElementById('conversionOutputProduct');
+    const outputQuantityField = document.getElementById('conversionOutputQuantity');
+    const createNewOutputProductField = document.getElementById('createNewOutputProduct');
+    const remarksField = document.getElementById('conversionRemarks');
+    const rows = Array.from(document.querySelectorAll('#conversionInputRows .conversion-input-row'));
+    const createNewOutputProduct = !!(createNewOutputProductField && createNewOutputProductField.checked);
+
+    if (!branchField || !branchField.value) {
+      alert('Branch is required.');
+      return;
+    }
+    if (!createNewOutputProduct) {
+      if (!outputProductField || !outputProductField.value) {
+        alert('Output product is required.');
+        return;
+      }
+    } else {
+      const newProductId = document.getElementById('newOutputProductId');
+      const newProductName = document.getElementById('newOutputProductName');
+      const newUnitPrice = document.getElementById('newOutputUnitPrice');
+      const unitPriceValue = Number(newUnitPrice && newUnitPrice.value ? newUnitPrice.value : NaN);
+
+      if (!newProductId || !newProductId.value.trim()) {
+        alert('New output product code is required.');
+        return;
+      }
+      if (!newProductName || !newProductName.value.trim()) {
+        alert('New output product name is required.');
+        return;
+      }
+      if (Number.isNaN(unitPriceValue) || unitPriceValue < 0) {
+        alert('New output unit price must be zero or greater.');
+        return;
+      }
+    }
+
+    const outputQty = Number(outputQuantityField && outputQuantityField.value ? outputQuantityField.value : 0);
+    if (outputQty <= 0) {
+      alert('Produced quantity must be greater than zero.');
+      return;
+    }
+
+    const inputRows = [];
+    const seenProducts = new Set();
+    for (const row of rows) {
+      const productField = row.querySelector('.conversion-input-product');
+      const quantityField = row.querySelector('.conversion-input-quantity');
+      const productId = productField ? productField.value : '';
+      const quantity = Number(quantityField && quantityField.value ? quantityField.value : 0);
+
+      if (!productId && !quantity) {
+        continue;
+      }
+      if (!productId || quantity <= 0) {
+        alert('Each input row must include a product and a quantity greater than zero.');
+        return;
+      }
+      if (seenProducts.has(productId)) {
+        alert('Input products must not be duplicated.');
+        return;
+      }
+      seenProducts.add(productId);
+      inputRows.push({ productId, quantity });
+    }
+
+    if (!inputRows.length) {
+      alert('At least one input product is required.');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('branch', branchField.value);
+    formData.append('output_quantity', String(outputQty));
+    formData.append('remarks', remarksField ? remarksField.value : '');
+    if (createNewOutputProduct) {
+      formData.append('create_output_product', '1');
+      formData.append('new_output_product_id', document.getElementById('newOutputProductId') ? document.getElementById('newOutputProductId').value.trim() : '');
+      formData.append('new_output_product_name', document.getElementById('newOutputProductName') ? document.getElementById('newOutputProductName').value.trim() : '');
+      formData.append('new_output_unit_price', document.getElementById('newOutputUnitPrice') ? document.getElementById('newOutputUnitPrice').value : '');
+      formData.append('new_output_low_stock_limit', document.getElementById('newOutputLowStockLimit') ? document.getElementById('newOutputLowStockLimit').value : '');
+      formData.append('new_output_category', document.getElementById('newOutputCategory') ? document.getElementById('newOutputCategory').value : '');
+      formData.append('new_output_brand', document.getElementById('newOutputBrand') ? document.getElementById('newOutputBrand').value : '');
+      formData.append('new_output_supplier', document.getElementById('newOutputSupplier') ? document.getElementById('newOutputSupplier').value : '');
+    } else {
+      formData.append('output_product', outputProductField.value);
+    }
+    for (const row of inputRows) {
+      formData.append('input_product', row.productId);
+      formData.append('quantity_used', String(row.quantity));
+    }
+
+    const csrfTokenElement = document.querySelector('#stockConversionForm [name=csrfmiddlewaretoken]');
+    const csrfToken = csrfTokenElement ? csrfTokenElement.value : '';
+
+    fetch(this.action, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-CSRFToken': csrfToken
+      }
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert(data.message);
+          location.reload();
+          return;
+        }
+        alert(data.message || 'Failed to create stock conversion.');
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to create stock conversion.');
+      });
+  });
 }
 
 // Low Stock Alerts DataTable
@@ -3252,6 +3630,7 @@ function resetModalInputs(modalId) {
         }
         input.classList.remove('is-invalid');
         input.removeAttribute('readonly');
+        input.disabled = false;
 
         // Remove error messages
         const errorContainer = input.nextElementSibling;

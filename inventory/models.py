@@ -109,10 +109,12 @@ class StockMovement(models.Model):
         ('OUT', 'Stock Out'),
         ('BLO', 'Backload Out'),
         ('BLI', 'Backload In'),
+        ('MIX_OUT', 'Mix Out'),
+        ('MIX_IN', 'Mix In'),
     )
     id = models.AutoField(primary_key=True)
     transaction_id = models.CharField(max_length=20, unique=True)
-    transaction_type = models.CharField(max_length=3, choices=TRANSACTION_CHOICES)
+    transaction_type = models.CharField(max_length=7, choices=TRANSACTION_CHOICES)
     branch = models.ForeignKey(Branches, on_delete=models.SET_NULL, null=True, blank=True)
     related_branch = models.ForeignKey(
         Branches,
@@ -130,6 +132,13 @@ class StockMovement(models.Model):
     transaction_group_id = models.CharField(max_length=20, null=True, blank=True)
     balance_before = models.PositiveIntegerField(null=True, blank=True)
     balance_after = models.PositiveIntegerField(null=True, blank=True)
+    conversion = models.ForeignKey(
+        'StockConversion',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='movements',
+    )
 
     class Meta:
         indexes = [
@@ -142,3 +151,56 @@ class StockMovement(models.Model):
     def __str__(self):
         # Products has field `product_name`
         return f"{self.transaction_type} - {self.transaction_id} - {self.product.product_name}"
+
+
+class StockConversion(models.Model):
+    id = models.AutoField(primary_key=True)
+    branch = models.ForeignKey(Branches, on_delete=models.SET_NULL, null=True, related_name='stock_conversions')
+    output_product = models.ForeignKey(Products, on_delete=models.SET_NULL, null=True, related_name='stock_conversions_output')
+    output_quantity = models.PositiveIntegerField()
+    remarks = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        Users,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='stock_conversions_created',
+    )
+    handled_by = models.ForeignKey(
+        Users,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='stock_conversions_handled',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['branch']),
+            models.Index(fields=['output_product']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        output_name = self.output_product.product_name if self.output_product else 'Unknown Product'
+        branch_name = self.branch.name if self.branch else 'Unknown Branch'
+        return f"CONV-{self.id} - {output_name} @ {branch_name}"
+
+
+class StockConversionInput(models.Model):
+    id = models.AutoField(primary_key=True)
+    conversion = models.ForeignKey(StockConversion, on_delete=models.CASCADE, related_name='inputs')
+    input_product = models.ForeignKey(Products, on_delete=models.SET_NULL, null=True, related_name='stock_conversion_inputs')
+    quantity_used = models.PositiveIntegerField()
+
+    class Meta:
+        unique_together = ('conversion', 'input_product')
+        indexes = [
+            models.Index(fields=['conversion']),
+            models.Index(fields=['input_product']),
+        ]
+
+    def __str__(self):
+        product_name = self.input_product.product_name if self.input_product else 'Unknown Product'
+        return f"CONV-{self.conversion_id} - {product_name} ({self.quantity_used})"

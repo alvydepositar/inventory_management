@@ -93,6 +93,7 @@ urlpatterns = [
     path('daily-sales-data/', views.daily_sales_data, name='daily_sales_data'),
     path('transfer-report-data/', views.transfer_report_data, name='transfer_report_data'),
     path('add-stock/', views.add_stock, name='add_stock'),
+    path('add-stock-conversion/', views.add_stock_conversion, name='add_stock_conversion'),
     path('edit-stock/<int:pk>/', views.edit_stock, name='edit_stock'),
     path('delete-stock/<int:pk>/', views.delete_stock, name='delete_stock'),
 

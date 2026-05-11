@@ -7,6 +7,7 @@ from django.forms import modelform_factory
 from django.urls import reverse
 from django.utils import timezone
 from datetime import datetime, time as dt_time
+from decimal import Decimal, InvalidOperation
 from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum, Value
 from django.db import transaction
 from django.db.models.functions import Coalesce, TruncDate
@@ -28,6 +29,7 @@ from .access import (
     scope_branch_queryset,
     scope_branches_queryset,
 )
+from .services import create_stock_conversion
 
 
 def _json_forbidden(message='You do not have permission to perform this action.'):
@@ -810,6 +812,9 @@ def manage_stocks(request, branch_id=None, stock_id=None):
     _attach_branch_sales_metrics(branches_list)
     branch_summary = None
     products = Products.objects.all().select_related('brand')
+    categories = Categories.objects.order_by('name')
+    brands = Brands.objects.order_by('name')
+    suppliers = Suppliers.objects.order_by('name')
     source_branches = list(scope_branches_queryset(request, Branches.objects.all()))
     destination_branches = list(Branches.objects.order_by('name'))
     if branch_id:
@@ -850,10 +855,14 @@ def manage_stocks(request, branch_id=None, stock_id=None):
         'editing': editing,
         'stock': stock,
         'products': products,
+        'categories': categories,
+        'brands': brands,
+        'suppliers': suppliers,
+        'can_create_products': _can_mutate_model(request, 'Products', 'create'),
         'can_choose_source_branch': access.is_admin,
         'can_view_all_branches_reports': access.is_admin,
         'selected_product_id': selected_product_id,
-        'selected_txn_type': request.GET.get('type', '') if request.GET.get('type', '') in ['IN', 'OUT', 'BACKLOAD'] else '',
+        'selected_txn_type': request.GET.get('type', '') if request.GET.get('type', '') in ['IN', 'OUT', 'BACKLOAD', 'MIXING', 'MIX_OUT', 'MIX_IN'] else '',
         'selected_date_from': request.GET.get('date_from', ''),
         'selected_date_to': request.GET.get('date_to', ''),
         'selected_txn_group_id': request.GET.get('group_id', ''),
@@ -1081,10 +1090,10 @@ def _parse_date_param(s, end=False):
         return None
 
 def _is_incoming_transaction(transaction_type):
-    return transaction_type in ['IN', 'BLI']
+    return transaction_type in ['IN', 'BLI', 'MIX_IN']
 
 def _is_outgoing_transaction(transaction_type):
-    return transaction_type in ['OUT', 'BLO']
+    return transaction_type in ['OUT', 'BLO', 'MIX_OUT']
 
 def _display_transaction_matches_backload_filter(transaction_type):
     return transaction_type in ['BLO', 'BLI']
@@ -1148,7 +1157,7 @@ def movement_data(request):
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
 
-    qs = StockMovement.objects.select_related('branch', 'related_branch', 'product', 'product__brand', 'handled_by').all()
+    qs = StockMovement.objects.select_related('branch', 'related_branch', 'product', 'product__brand', 'handled_by', 'conversion').all()
     qs = scope_branch_queryset(request, qs, branch_field='branch_id')
 
     if transaction_group_id:
@@ -1163,10 +1172,12 @@ def movement_data(request):
         qs = qs.filter(branch__id=branch_id_int)
     if product_id:
         qs = qs.filter(product__id=product_id)
-    if txn_type in ['IN', 'OUT', 'BLO', 'BLI']:
+    if txn_type in ['IN', 'OUT', 'BLO', 'BLI', 'MIX_OUT', 'MIX_IN']:
         qs = qs.filter(transaction_type=txn_type)
     elif txn_type == 'BACKLOAD':
         qs = qs.filter(transaction_type__in=['BLO', 'BLI'])
+    elif txn_type == 'MIXING':
+        qs = qs.filter(transaction_type__in=['MIX_OUT', 'MIX_IN'])
     dt_from = _parse_date_param(date_from, end=False)
     dt_to = _parse_date_param(date_to, end=True)
     if dt_from:
@@ -1180,6 +1191,7 @@ def movement_data(request):
         'branch__id', 'branch__name',
         'related_branch__id', 'related_branch__name',
         'transaction_group_id',
+        'conversion_id',
         'product__id', 'product__product_name', 'product__brand__name',
         'handled_by__id', 'handled_by__username'
     ))
@@ -1642,6 +1654,149 @@ def add_stock(request):
     if transaction_type == 'BACKLOAD':
         return JsonResponse({'success': True, 'message': 'Transfer recorded successfully.'})
     return JsonResponse({'success': True, 'message': 'Stock action recorded successfully.'})
+
+
+@login_required
+@role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, ROLE_USER, json_response=True, require_branch_assignment=True)
+def add_stock_conversion(request):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method.'}, status=405)
+
+    try:
+        branch_id = int(request.POST.get('branch')) if request.POST.get('branch') else None
+        output_product_id = int(request.POST.get('output_product')) if request.POST.get('output_product') else None
+        output_quantity = int(request.POST.get('output_quantity') or 0)
+        remarks = request.POST.get('remarks') or ''
+    except (TypeError, ValueError):
+        return JsonResponse({'success': False, 'message': 'Invalid input values.'}, status=400)
+    create_output_product = request.POST.get('create_output_product') in ['1', 'true', 'True', 'on']
+
+    if not branch_id:
+        return JsonResponse({'success': False, 'message': 'Branch is required.'}, status=400)
+    if not create_output_product and not output_product_id:
+        return JsonResponse({'success': False, 'message': 'Output product is required.'}, status=400)
+
+    if not can_access_branch(request, branch_id):
+        return _json_forbidden('You do not have access to the selected branch.')
+
+    branch = get_object_or_404(scope_branches_queryset(request, Branches.objects.all()), pk=branch_id)
+    handled_by = get_request_app_user(request)
+
+    input_product_ids = request.POST.getlist('input_product')
+    input_quantities = request.POST.getlist('quantity_used')
+    if not input_product_ids:
+        return JsonResponse({'success': False, 'message': 'At least one input product is required.'}, status=400)
+    if len(input_product_ids) != len(input_quantities):
+        return JsonResponse({'success': False, 'message': 'Input product rows are incomplete.'}, status=400)
+
+    input_rows = []
+    for input_product_raw, quantity_raw in zip(input_product_ids, input_quantities):
+        if not input_product_raw:
+            return JsonResponse({'success': False, 'message': 'Input product is required for each row.'}, status=400)
+        try:
+            input_product_id = int(input_product_raw)
+            quantity_used = int(quantity_raw or 0)
+        except (TypeError, ValueError):
+            return JsonResponse({'success': False, 'message': 'Invalid input product or quantity.'}, status=400)
+        input_product = get_object_or_404(Products, pk=input_product_id)
+        input_rows.append(
+            {
+                'input_product': input_product,
+                'quantity_used': quantity_used,
+            }
+        )
+
+    output_product = None
+    new_product_payload = None
+    if create_output_product:
+        if not _can_mutate_model(request, 'Products', 'create'):
+            return _json_forbidden('You do not have permission to create products.')
+
+        product_code = (request.POST.get('new_output_product_id') or '').strip()
+        product_name = (request.POST.get('new_output_product_name') or '').strip()
+        unit_price_raw = (request.POST.get('new_output_unit_price') or '').strip()
+        low_stock_limit_raw = (request.POST.get('new_output_low_stock_limit') or '').strip()
+        category_id_raw = (request.POST.get('new_output_category') or '').strip()
+        brand_id_raw = (request.POST.get('new_output_brand') or '').strip()
+        supplier_id_raw = (request.POST.get('new_output_supplier') or '').strip()
+
+        if not product_code:
+            return JsonResponse({'success': False, 'message': 'New output product code is required.'}, status=400)
+        if not product_name:
+            return JsonResponse({'success': False, 'message': 'New output product name is required.'}, status=400)
+        if Products.objects.filter(product_id=product_code).exists():
+            return JsonResponse({'success': False, 'message': 'Product code already exists.'}, status=400)
+
+        try:
+            unit_price = Decimal(unit_price_raw)
+        except (InvalidOperation, TypeError):
+            return JsonResponse({'success': False, 'message': 'New output unit price is invalid.'}, status=400)
+        if unit_price < 0:
+            return JsonResponse({'success': False, 'message': 'New output unit price cannot be negative.'}, status=400)
+
+        low_stock_limit = 10
+        if low_stock_limit_raw:
+            try:
+                low_stock_limit = int(low_stock_limit_raw)
+            except (TypeError, ValueError):
+                return JsonResponse({'success': False, 'message': 'New output low stock limit is invalid.'}, status=400)
+            if low_stock_limit < 0:
+                return JsonResponse({'success': False, 'message': 'New output low stock limit cannot be negative.'}, status=400)
+
+        category = None
+        brand = None
+        supplier = None
+        if category_id_raw:
+            try:
+                category = Categories.objects.get(pk=int(category_id_raw))
+            except (TypeError, ValueError, Categories.DoesNotExist):
+                return JsonResponse({'success': False, 'message': 'Selected category for new output product is invalid.'}, status=400)
+        if brand_id_raw:
+            try:
+                brand = Brands.objects.get(pk=int(brand_id_raw))
+            except (TypeError, ValueError, Brands.DoesNotExist):
+                return JsonResponse({'success': False, 'message': 'Selected brand for new output product is invalid.'}, status=400)
+        if supplier_id_raw:
+            try:
+                supplier = Suppliers.objects.get(pk=int(supplier_id_raw))
+            except (TypeError, ValueError, Suppliers.DoesNotExist):
+                return JsonResponse({'success': False, 'message': 'Selected supplier for new output product is invalid.'}, status=400)
+
+        new_product_payload = {
+            'product_id': product_code,
+            'product_name': product_name,
+            'category': category,
+            'brand': brand,
+            'supplier': supplier,
+            'unit_price': unit_price,
+            'low_stock_limit': low_stock_limit,
+        }
+    else:
+        output_product = get_object_or_404(Products, pk=output_product_id)
+
+    try:
+        with transaction.atomic():
+            if create_output_product:
+                output_product = Products.objects.create(**new_product_payload)
+
+            conversion = create_stock_conversion(
+                branch=branch,
+                inputs=input_rows,
+                output_product=output_product,
+                output_quantity=output_quantity,
+                user=handled_by,
+                remarks=remarks,
+            )
+    except ValueError as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+
+    return JsonResponse(
+        {
+            'success': True,
+            'message': f'Stock conversion recorded successfully (Conversion #{conversion.id}).',
+            'conversion_id': conversion.id,
+        }
+    )
 
 @login_required
 @role_required(ROLE_ADMIN, ROLE_BRANCH_MANAGER, json_response=True, require_branch_assignment=True)

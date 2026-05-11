@@ -42,6 +42,9 @@
             <option value="IN" {% if selected_txn_type == 'IN' %}selected{% endif %}>Receive Stock</option>
             <option value="OUT" {% if selected_txn_type == 'OUT' %}selected{% endif %}>Release Stock</option>
             <option value="BACKLOAD" {% if selected_txn_type == 'BACKLOAD' %}selected{% endif %}>Transfer to Branch</option>
+            <option value="MIXING" {% if selected_txn_type == 'MIXING' %}selected{% endif %}>Mix / Convert</option>
+            <option value="MIX_OUT" {% if selected_txn_type == 'MIX_OUT' %}selected{% endif %}>Used for Mixing</option>
+            <option value="MIX_IN" {% if selected_txn_type == 'MIX_IN' %}selected{% endif %}>Produced from Mixing</option>
           </select>
         </div>
         <div class="col-12 col-md-4">
